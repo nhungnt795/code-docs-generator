@@ -4,7 +4,7 @@ import os
 class LlamaDocstringGenerator:
     def __init__(self, api_url=None):
         print("[*] Đang khởi tạo kết nối tới LLM Engine trên Kaggle (qua Cloudflare)...")
-        self.api_url = api_url or os.getenv("KAGGLE_API_URL", "https://streams-surprising-dawn-nevada.trycloudflare.com/generate_docstring")
+        self.api_url = api_url or os.getenv("KAGGLE_API_URL", "https://walking-trusts-wash-alto.trycloudflare.com/generate_docstring")
 
     def generate(self, prompt: str) -> str:
         payload = {
