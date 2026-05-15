@@ -28,7 +28,7 @@ class GraphRAGEngine:
 
         # 2. Rút trích 3 mẫu code + AST Graph giống nhất từ Postgres (Docker)
         print("[*] Đang lục lọi Knowledge Base...")
-        similar_docs = self.db.search_similar_code(query_vector, top_k=3)
+        similar_docs = self.db.search_similar_code(query_vector, top_k=2)
 
         # 3. Chuẩn bị Context
         context_str = ""
@@ -53,9 +53,9 @@ TRẢ LỜI:
 """
         
         # 5. Đẩy cho Llama sinh chữ
-        print("[*] Đóng gói Context và gửi API lên Kaggle...")
+        print("[*] Đóng gói Context và gửi API lên Kaggle/Groq...")
         
-        # Hàm generate sẽ bắn payload {"code": prompt} lên Kaggle 
+        # Hàm generate sẽ bắn payload {"code": prompt} lên Kaggle/Groq
         # và nhận về JSON chứa key "docstring"
         return self.llm.generate(prompt)
     

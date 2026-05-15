@@ -23,6 +23,12 @@ dependencies:
   # Local storage (theme, auth token)
   shared_preferences: ^2.3.0
 
+  # HTTP client cho gọi API
+  http: ^1.2.2
+
+  # File picker (để chọn file mã nguồn)
+  file_picker: ^8.1.2
+
   # Charts (Admin dashboard)
   fl_chart: ^0.68.0
 
@@ -70,5 +76,5 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/icons/app_icon.png" # Đường dẫn tới file ảnh của bạn
-  min_sdk_android: 21 # Cấu hình tùy chọn cho Android
+  image_path: "assets/icons/app_icon.png"
+  min_sdk_android: 21

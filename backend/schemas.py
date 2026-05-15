@@ -10,11 +10,16 @@ class ActionResult(BaseModel, Generic[T]):
     message: str
     data: Optional[T] = None
 
+# ── User Schemas ─────────────────────────────────────────────────────────────
 class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
 
 class UserCreate(UserBase):
+    password: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
     password: str
 
 class UserResponse(UserBase):
@@ -25,6 +30,12 @@ class UserResponse(UserBase):
     class Config:
         from_attributes = True
 
+class LoginResponse(BaseModel):
+    """Trả về thông tin user + token giả (dùng user_id làm session key)"""
+    user: UserResponse
+    token: str  # Token đơn giản: chuỗi base64 của user_id để Frontend lưu
+
+# ── Document Schemas ─────────────────────────────────────────────────────────
 class DocumentBase(BaseModel):
     title: str
     source_type: SourceType
@@ -45,6 +56,7 @@ class DocumentResponse(DocumentBase):
     class Config:
         from_attributes = True
 
+# ── Audit Log Schemas ────────────────────────────────────────────────────────
 class AuditLogResponse(BaseModel):
     log_id: int
     user_id: Optional[int] = None
@@ -54,3 +66,12 @@ class AuditLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# ── Dashboard Stats Schema ───────────────────────────────────────────────────
+class DashboardStats(BaseModel):
+    """Thống kê tổng quan cho Admin Dashboard"""
+    total_users: int
+    total_documents: int
+    total_admins: int
+    docs_today: int
+    avg_time_ms: int

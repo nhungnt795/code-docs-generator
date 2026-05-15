@@ -1,0 +1,23 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+pydantic[email]==2.9.2
+python-dotenv==1.0.1
+bcrypt==4.2.0
+requests==2.32.3
+
+# Tree-sitter cho validation cú pháp
+tree-sitter==0.23.2
+tree-sitter-python==0.23.4
+tree-sitter-java==0.23.4
+tree-sitter-javascript==0.23.0
+tree-sitter-typescript==0.23.2
+tree-sitter-cpp==0.23.4
+tree-sitter-rust==0.23.0
+
+# AI/ML cho RAG engine
+torch==2.4.1
+transformers==4.45.2
+sentence-transformers==3.2.0
+numpy==1.26.4

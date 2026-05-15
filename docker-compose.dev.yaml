@@ -1,0 +1,38 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# docker-compose.dev.yaml — Chỉ chạy PostgreSQL + pgvector cho dev Backend
+# ═══════════════════════════════════════════════════════════════════════════
+# Đặt file này ở root của project (cùng cấp với thư mục backend/)
+#
+# Cách dùng:
+#   docker compose -f docker-compose.dev.yaml up -d
+#   docker compose -f docker-compose.dev.yaml down
+#   docker compose -f docker-compose.dev.yaml down -v   # Xóa cả volume DB
+#
+# So với airflow/docker-compose.yaml:
+#   - KHÔNG chạy Airflow (chỉ Database) → nhẹ, khởi động nhanh
+#   - Database web_and_app_db tự khởi tạo + bật pgvector
+#   - Cùng port 5435 nên backend dùng cấu hình .env như cũ
+# ═══════════════════════════════════════════════════════════════════════════
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: docgen-postgres-dev
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - docgen-pgdata-dev:/var/lib/postgresql/data
+      - ./docker/init-db.sh:/docker-entrypoint-initdb.d/01-init-db.sh:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  docgen-pgdata-dev:
