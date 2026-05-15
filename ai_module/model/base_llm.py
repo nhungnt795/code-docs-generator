@@ -2,38 +2,45 @@ import requests
 import os
 
 class LlamaDocstringGenerator:
-    def __init__(self, api_url=None):
-        print("[*] Đang khởi tạo kết nối tới LLM Engine trên Kaggle (qua Cloudflare)...")
-        self.api_url = api_url or os.getenv("KAGGLE_API_URL", "https://accounts-mixed-defensive-welding.trycloudflare.com/generate_docstring")
+    def __init__(self, api_key=None):
+        # Lấy API Key từ biến môi trường
+        self.api_key = api_key or os.getenv("GROQ_API_KEY")
+        self.api_url = "https://api.groq.com/openai/v1/chat/completions"
+        print("[*] Đang khởi tạo Llama 3.1 Engine qua Groq Cloud...")
 
     def generate(self, prompt: str) -> str:
+        if not self.api_key:
+            return "[!] Lỗi: Thiếu GROQ_API_KEY trong file .env"
+
+        # Đảm bảo cấu hình payload đúng chuẩn API Groq
         payload = {
-            "prompt": prompt 
+            "model": "llama-3.1-8b-instant",
+            "messages": [
+                {
+                    "role": "system", 
+                    "content": "Bạn là chuyên gia viết tài liệu kỹ thuật bằng Tiếng Việt. Chỉ trả về nội dung Markdown."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3, # Giảm xuống để kết quả ổn định hơn
+            "max_tokens": 1024,
+            "top_p": 1
         }
         
-        # Code giờ chỉ còn gọn gàng thế này thôi, không cần lách header nữa
         headers = {
+            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         
         try:
-            response = requests.post(
-                self.api_url,
-                json=payload,
-                headers=headers,
-                timeout=240  # Vẫn để 4 phút cho LLM có thời gian "suy nghĩ"
-            )
+            response = requests.post(self.api_url, json=payload, headers=headers, timeout=60)
             
-            response.raise_for_status() 
+            # Nếu không phải 200, trả về thông báo lỗi chi tiết để dễ debug
+            if response.status_code != 200:
+                return f"[!] Groq API Error {response.status_code}: {response.text}"
             
-            try:
-                result = response.json()
-            except ValueError:
-                return f"[!] Lỗi Decode: Server trả về không phải JSON. Nội dung thực tế: {response.text[:200]}"
+            result = response.json()
+            return result['choices'][0]['message']['content'].strip()
             
-            return result.get("docstring", "[!] Cảnh báo: JSON trả về không có trường 'docstring'.")
-            
-        except requests.exceptions.Timeout:
-            return "[!] Lỗi: Server Kaggle phản hồi quá lâu (Timeout)."
         except requests.exceptions.RequestException as e:
-            return f"[!] Lỗi kết nối API Kaggle: {str(e)}"
+            return f"[!] Lỗi kết nối hệ thống: {str(e)}"
