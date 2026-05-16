@@ -4,10 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/verify_otp_screen.dart';
+import '../../features/auth/presentation/reset_password_screen.dart';
 import '../../features/landing/presentation/landing_screen.dart';
 import '../../features/generate/presentation/generate_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/info/presentation/about_screen.dart';
+import '../../features/info/presentation/contact_screen.dart';
+import '../../features/info/presentation/download_screen.dart';
+import '../../features/info/presentation/privacy_screen.dart';
+import '../../features/info/presentation/terms_screen.dart';
 import '../../shared/layout/app_scaffold.dart';
 import '../auth/auth_provider.dart';
 
@@ -17,6 +24,11 @@ class UserRoutes {
   static const generate = '/generate';
   static const history = '/history';
   static const profile = '/profile';
+  static const about = '/about';
+  static const contact = '/contact';
+  static const download = '/download';
+  static const privacy = '/privacy';
+  static const terms = '/terms';
 }
 
 final userRouterProvider = Provider<GoRouter>((ref) {
@@ -27,20 +39,12 @@ final userRouterProvider = Provider<GoRouter>((ref) {
       final user = ref.read(authProvider).user;
       final loc = state.matchedLocation;
 
-      final isAuthRoute =
-          loc.startsWith('/login') || loc == '/' /* landing */;
-
-      // Chưa đăng nhập + đang vào route cần auth → đẩy về login
-      // Cho phép xem /generate ở chế độ Khách, nên không bắt buộc đăng nhập
       if (user == null && (loc == '/history' || loc == '/profile')) {
         return '/login';
       }
-
-      // Đã đăng nhập rồi mà còn ở /login → đẩy vào /generate
       if (user != null && loc.startsWith('/login')) {
         return '/generate';
       }
-
       return null;
     },
     routes: [
@@ -62,6 +66,20 @@ final userRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      GoRoute(
+        path: '/verify-otp',
+        builder: (context, state) {
+          final email = state.extra as String? ?? '';
+          return VerifyOtpScreen(email: email);
+        },
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) {
+          final email = state.extra as String? ?? '';
+          return ResetPasswordScreen(prefillEmail: email);
+        },
+      ),
       ShellRoute(
         builder: (context, state, child) => AppShell(
           location: state.matchedLocation,
@@ -82,6 +100,26 @@ final userRouterProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const ProfileScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: UserRoutes.about,
+        builder: (_, __) => const AboutScreen(),
+      ),
+      GoRoute(
+        path: UserRoutes.contact,
+        builder: (_, __) => const ContactScreen(),
+      ),
+      GoRoute(
+        path: UserRoutes.download,
+        builder: (_, __) => const DownloadScreen(),
+      ),
+      GoRoute(
+        path: UserRoutes.privacy,
+        builder: (_, __) => const PrivacyScreen(),
+      ),
+      GoRoute(
+        path: UserRoutes.terms,
+        builder: (_, __) => const TermsScreen(),
       ),
     ],
   );
