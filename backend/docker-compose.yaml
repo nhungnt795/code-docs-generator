@@ -1,4 +1,5 @@
 version: "3.8"
+
 services:
   api:
     build: .
@@ -11,20 +12,20 @@ services:
         condition: service_healthy
     env_file:
       - .env
-    # Sử dụng hostname 'postgres' thay vì IP để Docker tự nhận diện
     environment:
       - DB_HOST=postgres
       - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}
     volumes:
-      - .:/app
-      - ../ai_module:/app/ai_module
+      # Mount data để giữ lại avatar khi rebuild container
       - ../data:/app/data
+      # Mount ai_module để code AI vẫn dùng được
+      - ../ai_module:/app/ai_module
 
   postgres:
     image: pgvector/pgvector:pg13
     container_name: docgen-postgres
     ports:
-      - "5435:5432" # Máy local dùng 5435, trong Docker dùng 5432
+      - "5435:5432"
     environment:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASS}
