@@ -33,10 +33,10 @@ class GraphRAGEngine:
                 # 3. Chuẩn bị Context
                 context_str = ""
                 for i, doc in enumerate(similar_docs):
-                context_str += f"\n[Mẫu tham khảo {i+1} - Độ tương đồng: {doc['score']:.4f}]\n"
-                context_str += f"Source Code:\n{doc['code']}\n"
-                context_str += f"AST / Phụ thuộc:\n{doc['graph']}\n"
-                context_str += "-"*40
+                        context_str += f"\n[Mẫu tham khảo {i+1} - Độ tương đồng: {doc['score']:.4f}]\n"
+                        context_str += f"Source Code:\n{doc['code']}\n"
+                        context_str += f"AST / Phụ thuộc:\n{doc['graph']}\n"
+                        context_str += "-"*40
 
                 # 4. Ép Prompt cực gắt cho Llama 3.1
                 # (Đã kéo khối lệnh này ra ngoài vòng lặp for và căn lề trái chuẩn)
@@ -51,9 +51,9 @@ Viết tài liệu kỹ thuật cho đoạn code sau:
 
 TRẢ LỜI:
 """
-        # 5. Đẩy cho Llama sinh chữ
-        print("[*] Đóng gói Context và gửi API lên Kaggle/Groq...")
-        
-        # Hàm generate sẽ bắn payload {"code": prompt} lên Kaggle/Groq
-        # và nhận về JSON chứa key "docstring"
-        return self.llm.generate(prompt)
+                # 5. Đẩy cho Llama sinh chữ
+                print("[*] Đóng gói Context và gửi API lên Kaggle/Groq...")
+                
+                # Hàm generate sẽ bắn payload {"code": prompt} lên Kaggle/Groq
+                # và nhận về JSON chứa key "docstring"
+                return self.llm.generate(prompt)
