@@ -41,6 +41,12 @@ dependencies:
   # Icons
   cupertino_icons: ^1.0.8
   flutter_svg: ^2.2.4
+  image_picker: ^1.2.2
+  universal_html: ^2.3.0
+
+  # Lưu & chia sẻ file xuất (Markdown / PDF / Word) trên mobile
+  share_plus: ^10.0.0
+  path_provider: ^2.1.0
 
 dev_dependencies:
   flutter_test:

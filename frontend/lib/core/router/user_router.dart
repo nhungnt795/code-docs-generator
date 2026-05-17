@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/landing/presentation/landing_screen.dart';
+import '../../features/landing/presentation/splash_screen.dart';
 import '../../features/generate/presentation/generate_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -12,16 +13,22 @@ import '../../shared/layout/app_scaffold.dart';
 import '../auth/auth_provider.dart';
 
 class UserRoutes {
+  static const splash  = '/splash';
   static const landing = '/';
-  static const login = '/login';
+  static const login   = '/login';
   static const generate = '/generate';
-  static const history = '/history';
-  static const profile = '/profile';
+  static const history  = '/history';
+  static const profile  = '/profile';
+  static const about    = '/about';
+  static const contact  = '/contact';
+  static const download = '/download';
+  static const privacy  = '/privacy';
+  static const terms    = '/terms';
 }
 
 final userRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: UserRoutes.landing,
+    initialLocation: UserRoutes.splash,  // ← bắt đầu từ splash, không phải '/'
     refreshListenable: _AuthRefreshNotifier(ref),
     redirect: (context, state) {
       final user = ref.read(authProvider).user;
@@ -44,6 +51,14 @@ final userRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // ── Splash — chỉ hiện lúc khởi động, sau đó redirect về landing ──────
+      GoRoute(
+        path: UserRoutes.splash,
+        builder: (context, state) => SplashScreen(
+          duration: const Duration(milliseconds: 1500),
+          onFinish: () => context.go(UserRoutes.landing),
+        ),
+      ),
       GoRoute(
         path: UserRoutes.landing,
         builder: (_, __) => const LandingScreen(),

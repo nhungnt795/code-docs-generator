@@ -210,7 +210,7 @@ class _SplashScreenState extends State<SplashScreen>
                 opacity: _textOpacity,
                 child: Center(
                   child: Text(
-                    'Học phần Khai phá Dữ liệu · Trường Đại học Khoa học Tự nhiên · ĐHQGHN',
+                    'Học phần Khai phá Dữ liệu\nTrường Đại học Khoa học Tự nhiên · ĐHQGHN',
                     style: AppTypography.caption.copyWith(
                       color: AppColors.fgSubtleLight,
                     ),
