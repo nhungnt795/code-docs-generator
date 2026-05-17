@@ -62,12 +62,22 @@ app = FastAPI(
 )
 
 # CORS
+# Lưu ý: allow_credentials=True không tương thích với allow_origins=["*"]
+# Phải liệt kê origin cụ thể hoặc đọc từ env
+_cors_origins_env = os.getenv("CORS_ORIGINS", "")
+if _cors_origins_env:
+    _allow_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+else:
+    # Fallback: cho phép tất cả origin (không dùng credentials)
+    _allow_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=_allow_origins,
+    allow_credentials=_allow_origins != ["*"],  # credentials chỉ bật khi có origin cụ thể
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 # Static files (avatars, exported files...)

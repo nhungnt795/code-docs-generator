@@ -438,13 +438,10 @@ class _AvatarWidget extends StatelessWidget {
     final avatarUrl = user?.avatarUrl;
 
     if (avatarUrl != null && avatarUrl.isNotEmpty) {
-      // Build URL đầy đủ
-      final fullUrl = avatarUrl.startsWith('http')
-          ? avatarUrl
-          : '${ApiConfig.baseUrl}/$avatarUrl';
+      // avatarUrl đã được xử lý thành full URL trong User.fromJson → dùng trực tiếp
       return CircleAvatar(
         radius: size / 2,
-        backgroundImage: NetworkImage(fullUrl),
+        backgroundImage: NetworkImage(avatarUrl),
         onBackgroundImageError: (_, __) {},
         child: null,
       );
@@ -508,9 +505,8 @@ class _UsageStatsCard extends ConsumerWidget {
             child: CircularProgressIndicator(strokeWidth: 2)),
         error: (_, __) => Text('Không tải được thống kê',
             style: AppTypography.body.copyWith(color: muted)),
-        data: (list) => Wrap(
-          spacing: AppSpacing.s4,
-          runSpacing: AppSpacing.s4,
+        data: (list) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _StatBox(
               icon: Icons.description_outlined,
@@ -519,7 +515,8 @@ class _UsageStatsCard extends ConsumerWidget {
               fg: fg,
               muted: muted,
             ),
-            if (list.isNotEmpty)
+            if (list.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.s3),
               _StatBox(
                 icon: Icons.calendar_today_outlined,
                 label: 'Lần sử dụng gần nhất',
@@ -527,6 +524,7 @@ class _UsageStatsCard extends ConsumerWidget {
                 fg: fg,
                 muted: muted,
               ),
+            ],
           ],
         ),
       ),
@@ -555,30 +553,41 @@ class _StatBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.primarySoft,
-            borderRadius: BorderRadius.circular(8),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final boxBg = isDark
+        ? AppColors.primary.withOpacity(0.12)
+        : AppColors.primarySoft;
+    final iconBg = AppColors.primary.withOpacity(0.15);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s4, vertical: AppSpacing.s3),
+      decoration: BoxDecoration(
+        color: boxBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: AppColors.primary),
           ),
-          child: Icon(icon, size: 18, color: AppColors.primary),
-        ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value,
-                style: AppTypography.h4.copyWith(
-                    color: fg, fontWeight: FontWeight.w700)),
-            Text(label,
-                style:
-                    AppTypography.caption.copyWith(color: muted)),
-          ],
-        ),
-      ],
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value,
+                  style: AppTypography.h4.copyWith(
+                      color: fg, fontWeight: FontWeight.w700)),
+              Text(label,
+                  style: AppTypography.caption.copyWith(color: muted)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

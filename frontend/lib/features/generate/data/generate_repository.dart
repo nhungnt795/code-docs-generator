@@ -15,7 +15,8 @@ class GenerateRepository {
   static final GenerateRepository instance = GenerateRepository._();
 
   /// Sinh tài liệu (user đã đăng nhập → lưu vào lịch sử)
-  Future<Document> generate({
+  /// Trả về (Document, SyntaxCheckResult?) — warning nếu user bỏ qua lỗi syntax
+  Future<(Document, SyntaxCheckResult?)> generate({
     required String title,
     required String rawCode,
     required ProgrammingLanguage language,
@@ -59,14 +60,22 @@ class GenerateRepository {
     final merged = {
       ...docMap,
       'raw_code_context': docMap['raw_code_context'] ?? rawCode,
-      // Giả lập doc_id, user_id cho guest nếu null
       'doc_id': docMap['doc_id'],
       'user_id': docMap['user_id'],
       'created_at': docMap['created_at'] ?? DateTime.now().toIso8601String(),
       'updated_at': docMap['updated_at'] ?? DateTime.now().toIso8601String(),
     };
 
-    return Document.fromJson(merged);
+    final doc = Document.fromJson(merged);
+
+    // Parse syntax_warning nếu có (khi user đã bỏ qua cảnh báo)
+    SyntaxCheckResult? warning;
+    final warnMap = res.data!['syntax_warning'] as Map<String, dynamic>?;
+    if (warnMap != null && (warnMap['has_error'] as bool? ?? false)) {
+      warning = SyntaxCheckResult.fromJson(warnMap);
+    }
+
+    return (doc, warning);
   }
 
   /// Kiểm tra syntax — endpoint /api/docs/check-syntax
@@ -107,31 +116,30 @@ class GenerateRepository {
 class SyntaxCheckResult {
   final bool hasError;
   final String? errorMessage;
-  final int? errorLine;
+  final String? detail;
 
   const SyntaxCheckResult({
     required this.hasError,
     this.errorMessage,
-    this.errorLine,
+    this.detail,
   });
 
   factory SyntaxCheckResult.fromJson(Map<String, dynamic> json) {
-    // Backend trả về: { has_error, message, detail }
     return SyntaxCheckResult(
-      hasError: json['has_error'] as bool? ?? false,
-      errorMessage: json['message'] as String?,
-      errorLine: json['error_line'] as int?,
+      hasError:     json['has_error'] as bool? ?? false,
+      errorMessage: json['message']   as String?,
+      detail:       json['detail']    as String?,
     );
   }
 }
 
 final generateRepoProvider = Provider<GenerateRepository>(
-  (ref) => GenerateRepository.instance,
+      (ref) => GenerateRepository.instance,
 );
 
 final selectedModelProvider = StateProvider<AIModelType?>((ref) => null);
 
 final activeModelsProvider =
-    FutureProvider.autoDispose<List<AIModelConfig>>(
-  (ref) => GenerateRepository.instance.fetchActiveModels(),
+FutureProvider.autoDispose<List<AIModelConfig>>(
+      (ref) => GenerateRepository.instance.fetchActiveModels(),
 );

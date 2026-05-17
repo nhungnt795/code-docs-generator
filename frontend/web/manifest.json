@@ -1,11 +1,11 @@
 {
-    "name": "doc_gen_vn",
-    "short_name": "doc_gen_vn",
+    "name": "DocGen VN",
+    "short_name": "DocGen VN",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A Vietnamese-language source-code documentation generator built for developers",
+    "description": "A new Flutter project.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

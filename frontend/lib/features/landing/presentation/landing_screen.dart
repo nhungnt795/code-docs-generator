@@ -3,7 +3,10 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/auth/auth_provider.dart';
 import '../../../core/tokens/app_colors.dart';
 import '../../../core/tokens/app_spacing.dart';
 import '../../../core/tokens/app_typography.dart';
@@ -11,13 +14,13 @@ import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/dg_button.dart';
 import '../widgets/landing_quick_generate.dart';
 
-class LandingScreen extends StatefulWidget {
+class LandingScreen extends ConsumerStatefulWidget {
   const LandingScreen({super.key});
   @override
-  State<LandingScreen> createState() => _LandingScreenState();
+  ConsumerState<LandingScreen> createState() => _LandingScreenState();
 }
 
-class _LandingScreenState extends State<LandingScreen>
+class _LandingScreenState extends ConsumerState<LandingScreen>
     with TickerProviderStateMixin {
   late final AnimationController _heroCtrl;
   late final AnimationController _floatCtrl;
@@ -44,6 +47,15 @@ class _LandingScreenState extends State<LandingScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Nếu đã đăng nhập → redirect về trang generate
+    final user = ref.watch(currentUserProvider);
+    if (user != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/generate');
+      });
+      return const SizedBox.shrink();
+    }
+
     final isMobile = Responsive.isMobile(context);
     if (isMobile && !kIsWeb) {
       return _MobileAppView(heroCtrl: _heroCtrl, floatCtrl: _floatCtrl);
@@ -85,7 +97,7 @@ class _ScrollableView extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// VIEW: Mobile native — vuốt thẻ DỌC
+// VIEW: Mobile native — vuốt thẻ NGANG
 // ════════════════════════════════════════════════════════════════════════════
 class _MobileAppView extends StatefulWidget {
   final AnimationController heroCtrl;
@@ -117,84 +129,111 @@ class _MobileAppViewState extends State<_MobileAppView> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
-    return Scaffold(
-      backgroundColor: bg,
-      body: Stack(
-        children: [
-          PageView(
-            controller: _pageCtrl,
-            scrollDirection: Axis.vertical,
-            onPageChanged: (i) => setState(() => _currentPage = i),
-            children: [
-              _MobileCard(child: _HeroSection(
-                heroCtrl: widget.heroCtrl,
-                floatCtrl: widget.floatCtrl,
-                compact: true,
-              )),
-              const _MobileCard(child: _StatsSection(compact: true)),
-              const _MobileCard(child: _FeaturesSection(compact: true)),
-              const _MobileCard(child: _QuickGenerateSection(compact: true)),
-              const _MobileCard(child: _CTASection(compact: true)),
-            ],
-          ),
-          const Positioned(top: 0, left: 0, right: 0, child: _AppBarMobile()),
-          Positioned(
-            right: 16,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: bg,
+        body: Stack(
+          children: [
+            // PageView ngang — bắt đầu sau status bar + appbar
+            Positioned(
+              top: statusBarHeight + 56,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: PageView(
+                controller: _pageCtrl,
+                scrollDirection: Axis.horizontal,
+                onPageChanged: (i) => setState(() => _currentPage = i),
+                children: [
+                  _MobileCard(child: _HeroSection(
+                    heroCtrl: widget.heroCtrl,
+                    floatCtrl: widget.floatCtrl,
+                    compact: true,
+                  )),
+                  const _MobileCard(child: _StatsSection(compact: true)),
+                  const _MobileCard(child: _FeaturesSection(compact: true)),
+                  const _MobileCard(child: _QuickGenerateSection(compact: true)),
+                  const _MobileCard(child: _CTASection(compact: true)),
+                ],
+              ),
+            ),
+            // AppBar nằm dưới status bar
+            Positioned(
+              top: statusBarHeight,
+              left: 0,
+              right: 0,
+              child: const _AppBarMobile(),
+            ),
+            // Chấm chỉ trang — nằm dưới màn hình
+            Positioned(
+              bottom: 20 + MediaQuery.of(context).padding.bottom,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(_totalPages, (i) {
                   final active = i == _currentPage;
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    width: 4,
-                    height: active ? 24 : 12,
-                    decoration: BoxDecoration(
-                      color: active
-                          ? AppColors.primary
-                          : AppColors.primary.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(2),
+                  return GestureDetector(
+                    onTap: () => _pageCtrl.animateToPage(
+                      i,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    ),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: active ? 24 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: active
+                            ? AppColors.primary
+                            : AppColors.primary.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
                   );
                 }),
               ),
             ),
-          ),
-          if (_currentPage == 0)
-            Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 8),
-                      duration: const Duration(milliseconds: 900),
-                      curve: Curves.easeInOut,
-                      builder: (_, v, __) => Transform.translate(
-                        offset: Offset(0, -v),
-                        child: const Icon(
-                          Icons.keyboard_arrow_up,
-                          color: AppColors.primary,
+            // Hint vuốt ngang ở trang đầu
+            if (_currentPage == 0)
+              Positioned(
+                bottom: 48 + MediaQuery.of(context).padding.bottom,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: 8),
+                        duration: const Duration(milliseconds: 900),
+                        curve: Curves.easeInOut,
+                        builder: (_, v, __) => Transform.translate(
+                          offset: Offset(v, 0),
+                          child: const Icon(
+                            Icons.keyboard_arrow_right,
+                            color: AppColors.primary,
+                          ),
                         ),
+                        onEnd: () => setState(() {}),
                       ),
-                      onEnd: () => setState(() {}),
-                    ),
-                    Text(
-                      'Vuốt lên để khám phá',
-                      style: AppTypography.caption
-                          .copyWith(color: AppColors.primary),
-                    ),
-                  ],
+                      Text(
+                        'Vuốt để khám phá',
+                        style: AppTypography.caption
+                            .copyWith(color: AppColors.primary),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -206,11 +245,11 @@ class _MobileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(top: 56),
-        child: SingleChildScrollView(child: child),
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(
+        bottom: 80 + MediaQuery.of(context).padding.bottom,
       ),
+      child: child,
     );
   }
 }
@@ -328,7 +367,7 @@ class _AppBarMobile extends StatelessWidget {
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: card.withOpacity(0.9),
+        color: card.withOpacity(0.95),
         border: Border(
           bottom: BorderSide(
             color: isDark ? AppColors.borderDark : AppColors.borderLight,
@@ -1239,14 +1278,16 @@ class _Footer extends StatelessWidget {
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
                 children: links
-                    .map((l) => InkWell(
+                    .map((l) => MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: InkWell(
                   onTap: () => context.push(l.path),
                   child: Text(
                     l.label,
                     style: AppTypography.bodySmall
                         .copyWith(color: muted),
                   ),
-                ))
+                )))
                     .toList(),
               ),
               const SizedBox(height: 14),

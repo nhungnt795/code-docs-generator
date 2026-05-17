@@ -347,10 +347,10 @@ class ApiClient {
       );
     }
 
-    throw ApiException(
-      jsonBody['message']?.toString() ??
-          'Server error (${res.statusCode})',
-      statusCode: res.statusCode,
-    );
+    // FastAPI HTTPException trả về {"detail": "..."}, còn ActionResult thì {"message": "..."}
+    final errMsg = jsonBody['detail']?.toString()
+        ?? jsonBody['message']?.toString()
+        ?? 'Lỗi server (${res.statusCode})';
+    throw ApiException(errMsg, statusCode: res.statusCode);
   }
 }

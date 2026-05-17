@@ -10,10 +10,8 @@
 // Lưu ý: file này thay thế HOÀN TOÀN file cũ.
 
 import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-// import 'dart:html' as html_lib;
-import 'package:universal_html/html.dart' as html_lib;
 import 'package:file_picker/file_picker.dart';
+import 'download_helper.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -34,20 +32,10 @@ import '../../history/data/history_repository.dart';
 import '../data/generate_repository.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Download helpers
+// Download helpers – delegated to platform-specific download_helper.dart
 // ─────────────────────────────────────────────────────────────────────────────
-void _downloadBytes(List<int> bytes, String filename) {
-  if (!kIsWeb) return;
-  final blob = html_lib.Blob([bytes], 'application/octet-stream');
-  final url = html_lib.Url.createObjectUrlFromBlob(blob);
-  html_lib.AnchorElement(href: url)
-    ..setAttribute('download', filename)
-    ..click();
-  html_lib.Url.revokeObjectUrl(url);
-}
-
 void _downloadString(String content, String filename) {
-  _downloadBytes(utf8.encode(content), filename);
+  downloadBytes(utf8.encode(content), filename);
 }
 
 String _safeName(String title, String? uploadedFileName, String ext) {
@@ -78,6 +66,7 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
   String _selectedLang = 'python';
   bool _generating = false;
   bool _checkingSyntax = false;
+  bool _lastSyntaxHadError = false; // true nếu user đã bỏ qua cảnh báo syntax
   bool _hasOutput = false;
   String _output = '';
   String _rawCodeSubmitted = ''; // Lưu code đã submit để hiển thị
@@ -157,16 +146,18 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
 
   // ── Syntax check ────────────────────────────────────────────────────────────
   Future<bool> _checkSyntax(String code, ProgrammingLanguage lang) async {
-    setState(() => _checkingSyntax = true);
+    setState(() { _checkingSyntax = true; _lastSyntaxHadError = false; });
     try {
       final result = await ref.read(generateRepoProvider).checkSyntax(code: code, language: lang);
       setState(() => _checkingSyntax = false);
       if (!result.hasError) return true;
       if (!mounted) return false;
-      return await showDialog<bool>(
+      final proceed = await showDialog<bool>(
         context: context,
         builder: (_) => _SyntaxDialog(result: result, lang: lang),
       ) ?? false;
+      if (proceed) setState(() => _lastSyntaxHadError = true);
+      return proceed;
     } catch (_) {
       setState(() => _checkingSyntax = false);
       return true; // fail-safe: tiếp tục nếu check lỗi
@@ -175,23 +166,22 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
 
   // ── Model selector ──────────────────────────────────────────────────────────
   Future<void> _showModelSelector() async {
-    final models = await ref.read(activeModelsProvider.future).catchError((_) => <AIModelConfig>[]);
+    // Lấy danh sách model đang active từ server (để biết model nào online)
+    final activeModels = await ref.read(activeModelsProvider.future).catchError((_) => <AIModelConfig>[]);
     if (!mounted) return;
-    if (models.isEmpty) {
-      DgToast.show(context, 'Không có mô hình nào đang hoạt động. Dùng mô hình mặc định.',
-          type: ToastType.warning);
-      return;
-    }
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _ModelSheet(
-        models: models,
+        activeModels: activeModels,
         selectedModel: _selectedModel,
         onSelect: (m) { setState(() => _selectedModel = m); Navigator.pop(context); },
       ),
     );
   }
+
+  // ── State cho syntax warning banner (sau khi sinh xong với lỗi đã bỏ qua) ──
+  SyntaxCheckResult? _postGenSyntaxWarning;
 
   // ── GENERATE ────────────────────────────────────────────────────────────────
   Future<void> _generate() async {
@@ -218,31 +208,40 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
       }
     }
 
-    // Syntax check
+    // Syntax check — hỏi user trước khi gọi generate
     final canProceed = await _checkSyntax(code, lang);
     if (!canProceed || !mounted) return;
 
-    setState(() { _generating = true; _hasOutput = false; _currentDocId = null; });
+    // Nếu _checkSyntax trả true sau khi user chọn "Vẫn tiếp tục"
+    // → ignoreSyntaxWarning = true để backend không block lại
+    final ignoreSyntax = _lastSyntaxHadError;
+
+    setState(() {
+      _generating = true;
+      _hasOutput = false;
+      _currentDocId = null;
+      _postGenSyntaxWarning = null;
+    });
 
     try {
       final user = ref.read(currentUserProvider);
       final title = _uploadedFileName ??
           'Doc_${lang.displayName}_${DateTime.now().millisecondsSinceEpoch}';
 
-      final doc = await ref.read(generateRepoProvider).generate(
+      final (doc, syntaxWarn) = await ref.read(generateRepoProvider).generate(
         title: title,
         rawCode: code,
         language: lang,
         sourceType: _sourceType,
         userId: user?.userId,
         modelType: _selectedModel,
+        ignoreSyntaxWarning: ignoreSyntax,
       );
 
       if (!mounted) return;
 
       final content = doc.contentMd.trim();
       if (content.isEmpty) {
-        // Log để debug
         debugPrint('[GenerateScreen] contentMd rỗng! doc: $doc');
       }
 
@@ -254,6 +253,7 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
         _currentDocId = doc.docId;
         _currentTitle = title;
         _editCtrl.text = content;
+        _postGenSyntaxWarning = syntaxWarn; // banner cảnh báo sau khi sinh
       });
 
       if (user != null) ref.invalidate(historyListProvider);
@@ -318,7 +318,7 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
       DgToast.show(context, 'Đang tạo PDF...', type: ToastType.info);
       final bytes = await ref.read(historyRepoProvider)
           .exportPdf(docId: _currentDocId!, userId: user.userId);
-      _downloadBytes(bytes, _safeName(_currentTitle, _uploadedFileName, '.pdf'));
+      downloadBytes(bytes, _safeName(_currentTitle, _uploadedFileName, '.pdf'));
       if (mounted) DgToast.show(context, 'Đã tải PDF', type: ToastType.success);
     } on ApiException catch (e) {
       if (mounted) DgToast.show(context, e.message, type: ToastType.error);
@@ -332,7 +332,7 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
       DgToast.show(context, 'Đang tạo Word...', type: ToastType.info);
       final bytes = await ref.read(historyRepoProvider)
           .exportDocx(docId: _currentDocId!, userId: user.userId);
-      _downloadBytes(bytes, _safeName(_currentTitle, _uploadedFileName, '.docx'));
+      downloadBytes(bytes, _safeName(_currentTitle, _uploadedFileName, '.docx'));
       if (mounted) DgToast.show(context, 'Đã tải Word', type: ToastType.success);
     } on ApiException catch (e) {
       if (mounted) DgToast.show(context, e.message, type: ToastType.error);
@@ -511,28 +511,28 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
             if (_hasOutput)
               isMobile
                   ? FittedBox(fit: BoxFit.scaleDown,
-                      child: _ActionRow(
-                        isDark: isDark, editMode: _editMode,
-                        onToggleEdit: () => setState(() {
-                          _editMode = !_editMode;
-                          if (_editMode) _editCtrl.text = _output;
-                          else _output = _editCtrl.text;
-                        }),
-                        onCopy: _copyOutput, onSave: _saveHistory,
-                        onExportMd: _exportMarkdown, onExportPdf: _exportPdf,
-                        onExportDocx: _exportDocx,
-                      ))
+                  child: _ActionRow(
+                    isDark: isDark, editMode: _editMode,
+                    onToggleEdit: () => setState(() {
+                      _editMode = !_editMode;
+                      if (_editMode) _editCtrl.text = _output;
+                      else _output = _editCtrl.text;
+                    }),
+                    onCopy: _copyOutput, onSave: _saveHistory,
+                    onExportMd: _exportMarkdown, onExportPdf: _exportPdf,
+                    onExportDocx: _exportDocx,
+                  ))
                   : _ActionRow(
-                      isDark: isDark, editMode: _editMode,
-                      onToggleEdit: () => setState(() {
-                        _editMode = !_editMode;
-                        if (_editMode) _editCtrl.text = _output;
-                        else _output = _editCtrl.text;
-                      }),
-                      onCopy: _copyOutput, onSave: _saveHistory,
-                      onExportMd: _exportMarkdown, onExportPdf: _exportPdf,
-                      onExportDocx: _exportDocx,
-                    ),
+                isDark: isDark, editMode: _editMode,
+                onToggleEdit: () => setState(() {
+                  _editMode = !_editMode;
+                  if (_editMode) _editCtrl.text = _output;
+                  else _output = _editCtrl.text;
+                }),
+                onCopy: _copyOutput, onSave: _saveHistory,
+                onExportMd: _exportMarkdown, onExportPdf: _exportPdf,
+                onExportDocx: _exportDocx,
+              ),
           ]),
         ),
 
@@ -540,68 +540,76 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
         Expanded(child: _generating
             ? _buildSkeleton()
             : _hasOutput
-                ? AnimatedBuilder(
-                    animation: _outputTabCtrl,
-                    builder: (_, __) {
-                      if (_outputTabCtrl.index == 1) {
-                        // Tab Code gốc
-                        return Padding(
-                          padding: const EdgeInsets.all(AppSpacing.s4),
-                          child: Container(
-                            padding: const EdgeInsets.all(AppSpacing.s3),
-                            decoration: BoxDecoration(
-                              color: isDark ? AppColors.bgDark : AppColors.sunkenLight,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: border),
-                            ),
-                            child: SingleChildScrollView(
-                              child: Text(
-                                _rawCodeSubmitted.isEmpty
-                                    ? _codeCtrl.text
-                                    : _rawCodeSubmitted,
-                                style: AppTypography.code.copyWith(color: fg, fontSize: 12.5),
-                              ),
-                            ),
-                          ),
-                        );
-                      }
-                      // Tab Tài liệu
-                      if (_editMode) {
-                        return Padding(
-                          padding: const EdgeInsets.all(AppSpacing.s4),
-                          child: TextField(
-                            controller: _editCtrl,
-                            maxLines: null, minLines: null, expands: true,
-                            textAlignVertical: TextAlignVertical.top,
-                            style: AppTypography.code.copyWith(color: fg, fontSize: 13),
-                            decoration: const InputDecoration(
-                              border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        );
-                      }
-                      return Markdown(
-                        data: _output,
-                        padding: const EdgeInsets.all(AppSpacing.s5),
-                        styleSheet: MarkdownStyleSheet(
-                          p: AppTypography.body.copyWith(color: fg),
-                          h1: AppTypography.h2.copyWith(color: fg),
-                          h2: AppTypography.h3.copyWith(color: fg),
-                          h3: AppTypography.h4.copyWith(color: fg),
-                          code: AppTypography.code.copyWith(color: fg),
-                          codeblockDecoration: BoxDecoration(
-                            color: isDark ? AppColors.bgDark : AppColors.sunkenLight,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: border),
-                          ),
+            ? Column(children: [
+          // Banner cảnh báo syntax (khi user bỏ qua lỗi)
+          if (_postGenSyntaxWarning != null)
+            _SyntaxWarningBanner(
+              warning: _postGenSyntaxWarning!,
+              onDismiss: () => setState(() => _postGenSyntaxWarning = null),
+            ),
+          Expanded(child: AnimatedBuilder(
+              animation: _outputTabCtrl,
+              builder: (_, __) {
+                if (_outputTabCtrl.index == 1) {
+                  // Tab Code gốc
+                  return Padding(
+                    padding: const EdgeInsets.all(AppSpacing.s4),
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.s3),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.bgDark : AppColors.sunkenLight,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: border),
+                      ),
+                      child: SingleChildScrollView(
+                        child: Text(
+                          _rawCodeSubmitted.isEmpty
+                              ? _codeCtrl.text
+                              : _rawCodeSubmitted,
+                          style: AppTypography.code.copyWith(color: fg, fontSize: 12.5),
                         ),
-                      );
-                    })
-                : const DgEmptyState(
-                    icon: Icons.description_outlined,
-                    message: 'Tài liệu sẽ hiển thị ở đây',
-                    description: 'Nhập mã nguồn và nhấn "Sinh tài liệu".',
+                      ),
+                    ),
+                  );
+                }
+                // Tab Tài liệu
+                if (_editMode) {
+                  return Padding(
+                    padding: const EdgeInsets.all(AppSpacing.s4),
+                    child: TextField(
+                      controller: _editCtrl,
+                      maxLines: null, minLines: null, expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      style: AppTypography.code.copyWith(color: fg, fontSize: 13),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  );
+                }
+                return Markdown(
+                  data: _output,
+                  padding: const EdgeInsets.all(AppSpacing.s5),
+                  styleSheet: MarkdownStyleSheet(
+                    p: AppTypography.body.copyWith(color: fg),
+                    h1: AppTypography.h2.copyWith(color: fg),
+                    h2: AppTypography.h3.copyWith(color: fg),
+                    h3: AppTypography.h4.copyWith(color: fg),
+                    code: AppTypography.code.copyWith(color: fg),
+                    codeblockDecoration: BoxDecoration(
+                      color: isDark ? AppColors.bgDark : AppColors.sunkenLight,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: border),
+                    ),
                   ),
+                );
+              }))  // close Expanded(child: AnimatedBuilder
+        ])   // close Column children
+            : const DgEmptyState(
+          icon: Icons.description_outlined,
+          message: 'Tài liệu sẽ hiển thị ở đây',
+          description: 'Nhập mã nguồn và nhấn "Sinh tài liệu".',
+        ),
         ),
       ]),
     );
@@ -878,15 +886,27 @@ class _ModelPickerRow extends StatelessWidget {
 }
 
 class _ModelSheet extends StatelessWidget {
-  final List<AIModelConfig> models; final AIModelType? selectedModel;
+  final List<AIModelConfig> activeModels;
+  final AIModelType? selectedModel;
   final ValueChanged<AIModelType?> onSelect;
-  const _ModelSheet({required this.models, required this.selectedModel, required this.onSelect});
+  const _ModelSheet({required this.activeModels, required this.selectedModel, required this.onSelect});
+
   @override Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg     = isDark ? AppColors.cardDark : AppColors.cardLight;
     final border = isDark ? AppColors.borderDark : AppColors.borderLight;
     final fg     = isDark ? AppColors.fgDark : AppColors.fgLight;
     final muted  = isDark ? AppColors.fgMutedDark : AppColors.fgMutedLight;
+
+    // Luôn hiện đủ 2 model cố định, kiểm tra active từ server
+    final allModels = [AIModelType.GROQ_LLAMA3, AIModelType.KAGGLE_FINETUNED];
+    final activeSet = activeModels.map((m) => m.modelType).toSet();
+
+    String modelName(AIModelType t) => switch (t) {
+      AIModelType.GROQ_LLAMA3      => 'Llama 3.1 8B Instant (Groq Cloud)',
+      AIModelType.KAGGLE_FINETUNED => 'Llama 3.1 Finetuned (Kaggle)',
+    };
+
     return Container(
       decoration: BoxDecoration(color: bg,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -896,33 +916,46 @@ class _ModelSheet extends StatelessWidget {
         Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: border, borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: AppSpacing.s4),
         Text('Chọn mô hình AI', style: AppTypography.h4.copyWith(color: fg)),
-        Text('Chỉ hiển thị mô hình đang hoạt động', style: AppTypography.caption.copyWith(color: muted)),
         const SizedBox(height: AppSpacing.s4),
-        ...models.map((m) {
-          final isSel = m.modelType == selectedModel;
+        ...allModels.map((modelType) {
+          final isOnline = activeSet.contains(modelType);
+          final isSel    = modelType == selectedModel;
           return ListTile(
-            onTap: () => onSelect(m.modelType),
-            leading: Icon(Icons.smart_toy_outlined, color: isSel ? AppColors.primary : muted),
-            title: Text(m.displayName, style: AppTypography.body.copyWith(
-                color: isSel ? AppColors.primary : fg,
-                fontWeight: isSel ? FontWeight.w600 : FontWeight.w400)),
-            subtitle: m.description != null
-                ? Text(m.description!, style: AppTypography.caption.copyWith(color: muted)) : null,
+            onTap: isOnline ? () => onSelect(modelType) : null,
+            leading: Icon(
+              Icons.smart_toy_outlined,
+              color: !isOnline ? muted : (isSel ? AppColors.primary : muted),
+            ),
+            title: Text(
+              modelName(modelType),
+              style: AppTypography.body.copyWith(
+                color: !isOnline ? muted : (isSel ? AppColors.primary : fg),
+                fontWeight: isSel ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+            subtitle: Row(
+              children: [
+                Container(
+                  width: 7, height: 7,
+                  margin: const EdgeInsets.only(right: 5, top: 1),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isOnline ? AppColors.success : AppColors.error,
+                  ),
+                ),
+                Text(
+                  isOnline ? 'Đang hoạt động' : 'Đang offline - liên hệ admin để sử dụng',
+                  style: AppTypography.caption.copyWith(
+                    color: isOnline ? AppColors.success : AppColors.error,
+                  ),
+                ),
+              ],
+            ),
             trailing: isSel ? const Icon(Icons.check, color: AppColors.primary) : null,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           );
         }),
-        ListTile(
-          onTap: () => onSelect(null),
-          leading: Icon(Icons.auto_awesome, color: selectedModel == null ? AppColors.primary : muted),
-          title: Text('Tự động (Mặc định)', style: AppTypography.body.copyWith(
-              color: selectedModel == null ? AppColors.primary : fg,
-              fontWeight: selectedModel == null ? FontWeight.w600 : FontWeight.w400)),
-          trailing: selectedModel == null ? const Icon(Icons.check, color: AppColors.primary) : null,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        ),
         const SizedBox(height: AppSpacing.s2),
       ]),
     );
@@ -930,45 +963,49 @@ class _ModelSheet extends StatelessWidget {
 }
 
 class _SyntaxDialog extends StatelessWidget {
-  final SyntaxCheckResult result; final ProgrammingLanguage lang;
+  final SyntaxCheckResult result;
+  final ProgrammingLanguage lang;
   const _SyntaxDialog({required this.result, required this.lang});
-  @override Widget build(BuildContext context) {
+
+  @override
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg = isDark ? AppColors.fgDark : AppColors.fgLight;
+    final fg   = isDark ? AppColors.fgDark   : AppColors.fgLight;
+    final muted = isDark ? AppColors.fgMutedDark : AppColors.fgMutedLight;
+
     return AlertDialog(
       title: Row(children: [
         const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 22),
         const SizedBox(width: 8),
-        Text('Phát hiện lỗi Syntax', style: AppTypography.h4.copyWith(color: fg)),
+        Flexible(child: Text('Phát hiện lỗi Syntax',
+            style: AppTypography.h4.copyWith(color: fg))),
       ]),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Mã nguồn ${lang.displayName} có vẻ chứa lỗi cú pháp:',
-            style: AppTypography.body.copyWith(color: fg)),
-        const SizedBox(height: 12),
-        if (result.errorMessage != null)
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.red.withOpacity(0.3)),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (result.errorLine != null)
-                Text('Dòng ${result.errorLine}:', style: AppTypography.caption.copyWith(
-                    color: Colors.red, fontWeight: FontWeight.w600)),
-              Text(result.errorMessage!, style: AppTypography.code.copyWith(color: Colors.red, fontSize: 12)),
-            ]),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mã nguồn ${lang.displayName} có lỗi cú pháp.',
+            style: AppTypography.body.copyWith(color: fg),
           ),
-        const SizedBox(height: 12),
-        Text('Bạn vẫn muốn sinh tài liệu từ mã này?',
-            style: AppTypography.bodySmall.copyWith(
-                color: isDark ? AppColors.fgMutedDark : AppColors.fgMutedLight)),
-      ]),
+          const SizedBox(height: 10),
+          Text(
+            'Bạn vẫn muốn tiếp tục sinh tài liệu không?',
+            style: AppTypography.bodySmall.copyWith(color: muted),
+          ),
+        ],
+      ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Sửa lại')),
-        ElevatedButton(onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Vẫn tiếp tục', style: TextStyle(color: Colors.white))),
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Sửa lại'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+          child: const Text('Vẫn tiếp tục',
+              style: TextStyle(color: Colors.white)),
+        ),
       ],
     );
   }
@@ -1006,6 +1043,44 @@ class _ModelUnavailableDialog extends StatelessWidget {
           label: const Text('Liên hệ'),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Banner cảnh báo syntax — hiển thị ngay trên tài liệu nếu user bỏ qua lỗi
+// ─────────────────────────────────────────────────────────────────────────────
+class _SyntaxWarningBanner extends StatelessWidget {
+  final SyntaxCheckResult warning;
+  final VoidCallback onDismiss;
+  const _SyntaxWarningBanner({required this.warning, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.10),
+        border: Border(bottom: BorderSide(color: Colors.orange.withOpacity(0.35))),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Tài liệu được sinh từ mã nguồn có lỗi cú pháp.',
+            style: AppTypography.caption.copyWith(
+              color: Colors.orange.shade800,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: onDismiss,
+          child: const Icon(Icons.close, size: 16, color: Colors.orange),
+        ),
+      ]),
     );
   }
 }

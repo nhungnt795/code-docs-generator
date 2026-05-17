@@ -4,15 +4,15 @@
 // tiền tố `/api/...` rồi (vd: `/api/auth/login`).
 //
 // Production: https://docgenvn.id.vn        → + /api/auth/login = https://docgenvn.id.vn/api/auth/login ✅
-// Local web:   http://localhost:8000        → + /api/auth/login = http://localhost:8000/api/auth/login   ✅
 
-import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 
 class ApiConfig {
   ApiConfig._();
 
   static String get baseUrl {
+    // Luôn trỏ về server AWS — cả debug lẫn production
+    // Nếu muốn dev local, đổi thành 'http://localhost:8000' tạm thời
     return 'https://docgenvn.id.vn';
   }
 

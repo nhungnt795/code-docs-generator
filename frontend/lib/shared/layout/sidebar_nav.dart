@@ -110,54 +110,57 @@ class _Brand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: () => context.go('/'),
-      child: SizedBox(
-        height: 56,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisAlignment: collapsed
-                ? MainAxisAlignment.center
-                : MainAxisAlignment.start,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(Icons.auto_awesome,
-                    color: Colors.white, size: 16),
-              ),
-              if (!collapsed) ...[
-                const SizedBox(width: 10),
-                RichText(
-                  text: TextSpan(
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: isDark
-                          ? Colors.white
-                          : const Color(0xFF111827),
-                    ),
-                    children: const [
-                      TextSpan(text: 'DocGen'),
-                      TextSpan(
-                        text: ' VN',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => context.go('/'),
+        child: SizedBox(
+          height: 56,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              mainAxisAlignment: collapsed
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.auto_awesome,
+                      color: Colors.white, size: 16),
                 ),
+                if (!collapsed) ...[
+                  const SizedBox(width: 10),
+                  RichText(
+                    text: TextSpan(
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? Colors.white
+                            : const Color(0xFF111827),
+                      ),
+                      children: const [
+                        TextSpan(text: 'DocGen'),
+                        TextSpan(
+                          text: ' VN',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -185,37 +188,40 @@ class _NavTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color =
         selected ? AppColors.primary : AppColors.fgMuted(brightness);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: AppTheme.themeTransitionDuration,
-        padding: EdgeInsets.symmetric(
-          horizontal: collapsed ? 0 : 10,
-          vertical: 7,
-        ),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primarySoft : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: collapsed
-            ? Center(child: Icon(item.icon, size: 20, color: color))
-            : Row(
-                children: [
-                  Icon(item.icon, size: 18, color: color),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      item.label,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: color,
-                        fontWeight: selected
-                            ? FontWeight.w600
-                            : FontWeight.w500,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: AppTheme.themeTransitionDuration,
+          padding: EdgeInsets.symmetric(
+            horizontal: collapsed ? 0 : 10,
+            vertical: 7,
+          ),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primarySoft : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: collapsed
+              ? Center(child: Icon(item.icon, size: 20, color: color))
+              : Row(
+                  children: [
+                    Icon(item.icon, size: 18, color: color),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        item.label,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: color,
+                          fontWeight: selected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -243,11 +249,8 @@ class _SidebarBottom extends ConsumerWidget {
         : (user?.email ?? 'Người dùng');
     final email = user?.email ?? '';
     final avatarUrl = user?.avatarUrl;
-    final fullUrl = (avatarUrl != null && avatarUrl.isNotEmpty)
-        ? (avatarUrl.startsWith('http')
-            ? avatarUrl
-            : '${ApiConfig.baseUrl}/$avatarUrl')
-        : null;
+    // avatarUrl đã là full URL từ User.fromJson → dùng trực tiếp
+    final fullUrl = (avatarUrl != null && avatarUrl.isNotEmpty) ? avatarUrl : null;
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
 
     return Padding(
@@ -255,9 +258,11 @@ class _SidebarBottom extends ConsumerWidget {
       child: Column(
         children: [
           if (!collapsed)
-            GestureDetector(
-              onTap: () => context.go('/profile'),
-              child: Padding(
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => context.go('/profile'),
+                child: Padding(
                 padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
                 child: Row(
                   children: [
@@ -304,17 +309,21 @@ class _SidebarBottom extends ConsumerWidget {
                 ),
               ),
             ),
+          ),
           if (onToggleCollapse != null)
-            IconButton(
-              icon: Icon(
-                collapsed
-                    ? Icons.keyboard_double_arrow_right
-                    : Icons.keyboard_double_arrow_left,
-                size: 16,
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: IconButton(
+                icon: Icon(
+                  collapsed
+                      ? Icons.keyboard_double_arrow_right
+                      : Icons.keyboard_double_arrow_left,
+                  size: 16,
+                ),
+                onPressed: onToggleCollapse,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
-              onPressed: onToggleCollapse,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
             ),
         ],
       ),

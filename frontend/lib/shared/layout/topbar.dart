@@ -73,9 +73,12 @@ class _TopBarState extends ConsumerState<TopBar> {
                     children: [
                       if (isMobile)
                         // Logo mobile có thể click về landing
-                        GestureDetector(
-                          onTap: () => context.go('/'),
-                          child: const _AppLogo(),
+                        MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            onTap: () => context.go('/'),
+                            child: const _AppLogo(),
+                          ),
                         )
                       else ...[
                         if (widget.showMenuButton)
@@ -173,11 +176,8 @@ class _TopBarAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final avatarUrl = user?.avatarUrl;
-    final fullUrl = (avatarUrl != null && avatarUrl.isNotEmpty)
-        ? (avatarUrl.startsWith('http')
-            ? avatarUrl
-            : '${ApiConfig.baseUrl}/$avatarUrl')
-        : null;
+    // avatarUrl đã là full URL từ User.fromJson → dùng trực tiếp
+    final fullUrl = (avatarUrl != null && avatarUrl.isNotEmpty) ? avatarUrl : null;
 
     final initial = () {
       if (user?.fullName != null && user!.fullName!.trim().isNotEmpty) {
@@ -251,11 +251,14 @@ class _Breadcrumb extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Logo text click → landing
-        GestureDetector(
-          onTap: () => context.go('/'),
-          child: Text(
-            'DocGen VN',
-            style: AppTypography.bodySmall.copyWith(color: subtle),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => context.go('/'),
+            child: Text(
+              'DocGen VN',
+              style: AppTypography.bodySmall.copyWith(color: subtle),
+            ),
           ),
         ),
         Padding(
@@ -283,14 +286,17 @@ class _TopBarIconBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        alignment: Alignment.center,
-        child: Icon(icon, size: 18,
-            color: AppColors.fgSubtle(brightness)),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          child: Icon(icon, size: 18,
+              color: AppColors.fgSubtle(brightness)),
+        ),
       ),
     );
   }

@@ -266,20 +266,47 @@ class DgToast {
         SnackBar(
           duration: duration,
           behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFF1E293B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          margin: const EdgeInsets.all(AppSpacing.s4),
-          content: Row(
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: AppSpacing.s2),
-              Expanded(
-                child: Text(
-                  message,
-                  style: AppTypography.body.copyWith(color: AppColors.fgDark),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          // margin căn giữa màn hình, tối đa 480px
+          margin: EdgeInsets.only(
+            bottom: AppSpacing.s6,
+            left: AppSpacing.s4,
+            right: AppSpacing.s4,
+          ),
+          padding: EdgeInsets.zero,
+          content: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s4, vertical: AppSpacing.s3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 16, color: color),
+                    const SizedBox(width: AppSpacing.s2),
+                    Flexible(
+                      child: Text(
+                        message,
+                        style: AppTypography.body.copyWith(color: AppColors.fgDark),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       );

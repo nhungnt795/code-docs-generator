@@ -12,14 +12,26 @@ from typing import List, Optional
 import os
 import shutil
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    UploadFile,
+    File,
+)
+
+from pydantic import BaseModel
+
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 import models
 import schemas
+
 from auth_helpers import require_admin, write_log
 from database import get_db
+
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -57,6 +69,12 @@ def _parse_range(
                 s = s.replace(tzinfo=timezone.utc)
             if e and e.tzinfo is None:
                 e = e.replace(tzinfo=timezone.utc)
+            # Đảm bảo end là cuối ngày để không bỏ sót doc trong ngày cuối
+            if e:
+                e = e.replace(hour=23, minute=59, second=59, microsecond=999999)
+            # Đảm bảo start là đầu ngày
+            if s:
+                s = s.replace(hour=0, minute=0, second=0, microsecond=0)
             return s, e
         except Exception:
             raise HTTPException(status_code=400, detail="start_date/end_date phải ở dạng ISO")
@@ -626,11 +644,22 @@ class ContactMessageAdminResponse(BaseModel):
         from_attributes = True
 
 
-# Thêm vào cuối file admin.py (sau phần FEEDBACKS):
-
 # ═════════════════════════════════════════════════════════════
 # CONTACT MESSAGES — Tin nhắn từ trang Liên hệ
 # ═════════════════════════════════════════════════════════════
+
+class ContactMessageAdminResponse(BaseModel):
+    id: int
+    name: Optional[str]
+    email: str
+    content: str
+    is_read: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 @router.get(
     "/contact-messages",
     response_model=schemas.ActionResult[List[ContactMessageAdminResponse]],
@@ -640,30 +669,69 @@ async def list_contact_messages(
     unread_only: bool = Query(False),
     db: Session = Depends(get_db),
 ):
+    """
+    Admin xem tất cả tin nhắn từ form Liên hệ.
+    """
+
+    # DEBUG
+    print("DB SESSION =", db)
+
     require_admin(db, admin_id)
+
     q = db.query(models.ContactMessage)
+
     if unread_only:
         q = q.filter(models.ContactMessage.is_read == False)
-    items = q.order_by(models.ContactMessage.created_at.desc()).all()
+
+    items = (
+        q.order_by(models.ContactMessage.created_at.desc())
+        .all()
+    )
+
     return schemas.ActionResult(
         success=True,
         message="OK",
-        data=[ContactMessageAdminResponse.model_validate(item) for item in items],
+        data=items,
     )
 
 
-@router.post("/contact-messages/{msg_id}/read")
-def mark_contact_message_read(
+@router.patch(
+    "/contact-messages/{msg_id}/read",
+    response_model=schemas.ActionResult[dict],
+)
+async def mark_contact_message_read(
     msg_id: int,
-    admin_id: int = Query(...),   # thêm = Query(...)
+    admin_id: int = Query(...),
     db: Session = Depends(get_db),
 ):
-    """Đánh dấu tin nhắn liên hệ đã đọc."""
-    # require_admin(db, admin_id)
-    msg = db.query(models.ContactMessage).filter(models.ContactMessage.id == msg_id).first()
+    """
+    Đánh dấu tin nhắn liên hệ đã đọc.
+    """
+
+    require_admin(db, admin_id)
+
+    msg = (
+        db.query(models.ContactMessage)
+        .filter(models.ContactMessage.id == msg_id)
+        .first()
+    )
+
     if not msg:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Không tìm thấy tin nhắn.")
+        raise HTTPException(
+            status_code=404,
+            detail="Không tìm thấy tin nhắn",
+        )
+
     msg.is_read = True
+
     db.commit()
-    return schemas.ActionResult(success=True, message="Đã đánh dấu đã đọc.", data=None)
+    db.refresh(msg)
+
+    return schemas.ActionResult(
+        success=True,
+        message="Đã đánh dấu đã đọc",
+        data={
+            "id": msg.id,
+            "is_read": msg.is_read,
+        },
+    )

@@ -20,7 +20,7 @@ class DownloadScreen extends StatelessWidget {
     return InfoShell(
       title: 'Tải ứng dụng',
       subtitle:
-      'DocGen VN có mặt trên cả Android và iOS — sinh tài liệu code mọi lúc, mọi nơi.',
+      'DocGen VN có mặt trên cả Android và iOS - sinh tài liệu code mọi lúc, mọi nơi.',
       icon: Icons.download_rounded,
       gradient: const [Color(0xFF4F46E5), Color(0xFF22C55E)],
       child: Column(
@@ -239,7 +239,7 @@ class _InstallGuideSection extends StatelessWidget {
           steps: [
             'Cài đặt ứng dụng TestFlight từ App Store nếu chưa có.',
             'Nhấn nút "Cài qua TestFlight" ở trên.',
-            'Trình duyệt sẽ mở TestFlight — nhấn "Chấp nhận" lời mời thử nghiệm.',
+            'Trình duyệt sẽ mở TestFlight - nhấn "Chấp nhận" lời mời thử nghiệm.',
             'Nhấn "Cài đặt" trong TestFlight để tải DocGen VN.',
             'Mở ứng dụng sau khi cài đặt xong.',
           ],

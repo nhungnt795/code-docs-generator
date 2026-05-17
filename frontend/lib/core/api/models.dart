@@ -89,11 +89,19 @@ class User {
     );
   }
 
+  /// Strip baseUrl trước khi lưu cache — tránh nối URL 2 lần khi restore
+  String? get _rawAvatarPath {
+    if (avatarUrl == null) return null;
+    final base = ApiConfig.baseUrl;
+    if (avatarUrl!.startsWith(base)) return avatarUrl!.substring(base.length);
+    return avatarUrl;
+  }
+
   Map<String, dynamic> toJson() => {
     'user_id': userId,
     'email': email,
     'full_name': fullName,
-    'avatar_url': avatarUrl,
+    'avatar_url': _rawAvatarPath,
     'role': role.name,
     'is_active': isActive,
     'is_locked': isLocked,
