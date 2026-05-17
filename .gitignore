@@ -1,22 +1,63 @@
+# ==========================================
+# 1. BẢO MẬT & MÔI TRƯỜNG (Cực kỳ quan trọng)
+# ==========================================
 .env
-venv/
+*.pem
+*.key
+frontend/android/key.properties
+
+# ==========================================
+# 2. CẤU HÌNH IDE & HỆ ĐIỀU HÀNH
+# ==========================================
 .vscode/
+.idea/
+*.iml
+*.xml
+.DS_Store
+Thumbs.db
+frontend/.metadata
+
+# ==========================================
+# 3. MÔI TRƯỜNG ẢO & FILE RÁC PYTHON
+# ==========================================
+venv/
+env/
 __pycache__/
 *.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
 
-data/
-
-
+# ==========================================
+# 4. AIRFLOW, LOGS & CACHE (Chuẩn của nhóm trưởng)
+# ==========================================
 logs/
 cache/
-
 airflow/logs/
 airflow/plugins/
 airflow/config/
 
-*.db
-*.sqlite
-*.pkl
-*.parquet
-*.jsonl
+# ==========================================
+# 5. MODEL WEIGHTS (Chuẩn của nhóm trưởng)
+# ==========================================
 ai_module/weights/
+*.pkl
+*.sqlite
+
+# ==========================================
+# 6. FRONTEND (FLUTTER)
+# ==========================================
+frontend/.dart_tool/
+frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.pub-cache/
+frontend/.pub/
+
+# ==========================================
+# 7. DỮ LIỆU & HUẤN LUYỆN (ĐÃ MỞ KHÓA ĐỂ NỘP BÀI)
+# ==========================================
+# Ghi chú cho team: Nhóm trưởng từng chặn `data/`, `*.db`, `*.parquet`, `*.jsonl`
+# Nhưng để thầy cô có dữ liệu chạy test và xem lịch sử MLflow, 
+# các dòng chặn đó đã được gỡ bỏ khỏi .gitignore.
+# Lưu ý: Các file dữ liệu đẩy lên phải NHỎ HƠN 100MB để tránh lỗi Github.

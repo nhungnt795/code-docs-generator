@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  api:
+    build: .
+    container_name: docgen-fastapi
+    restart: always
+    user: "1000:1000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}
+    volumes:
+      - ../ai_module:/app/ai_module
+      - ./:/app
+
+  postgres:
+    image: pgvector/pgvector:pg13
+    container_name: docgen-postgres
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - pgdata_backend:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DB_USER}", "-d", "${DB_NAME}"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+
+volumes:
+  pgdata_backend:
