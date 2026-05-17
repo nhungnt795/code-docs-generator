@@ -488,7 +488,6 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
     final border = isDark ? AppColors.borderDark  : AppColors.borderLight;
     final fg     = isDark ? AppColors.fgDark      : AppColors.fgLight;
     final muted  = isDark ? AppColors.fgMutedDark : AppColors.fgMutedLight;
-    final isMobile = Responsive.isMobile(context);
 
     return Container(
       decoration: BoxDecoration(
@@ -509,8 +508,9 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
               Text('Tài liệu', style: AppTypography.bodyMedium.copyWith(color: fg)),
             const Spacer(),
             if (_hasOutput)
-              isMobile
-                  ? FittedBox(fit: BoxFit.scaleDown,
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
                   child: _ActionRow(
                     isDark: isDark, editMode: _editMode,
                     onToggleEdit: () => setState(() {
@@ -521,17 +521,8 @@ class _GenerateScreenState extends ConsumerState<GenerateScreen>
                     onCopy: _copyOutput, onSave: _saveHistory,
                     onExportMd: _exportMarkdown, onExportPdf: _exportPdf,
                     onExportDocx: _exportDocx,
-                  ))
-                  : _ActionRow(
-                isDark: isDark, editMode: _editMode,
-                onToggleEdit: () => setState(() {
-                  _editMode = !_editMode;
-                  if (_editMode) _editCtrl.text = _output;
-                  else _output = _editCtrl.text;
-                }),
-                onCopy: _copyOutput, onSave: _saveHistory,
-                onExportMd: _exportMarkdown, onExportPdf: _exportPdf,
-                onExportDocx: _exportDocx,
+                  ),
+                ),
               ),
           ]),
         ),

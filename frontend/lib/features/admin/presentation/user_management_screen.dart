@@ -553,13 +553,13 @@ class _TableHeader extends StatelessWidget {
         const SizedBox(width: AppSpacing.s3),
         col('Vai trò', null, w: 72),
         const SizedBox(width: AppSpacing.s3),
-        col('Trạng thái', null, w: 108),
+        col('Trạng thái', null, w: 100),
         const SizedBox(width: AppSpacing.s3),
         col('Tài liệu', _SortCol.docCount, w: 72),
         const SizedBox(width: AppSpacing.s3),
-        col('Ngày tham gia', _SortCol.joinDate, w: 104),
+        col('Ngày tham gia', _SortCol.joinDate, w: 96),
         const SizedBox(width: AppSpacing.s3),
-        col('Actions', null, w: 120),
+        col('Actions', null, w: 96),
       ]),
     );
   }
@@ -683,7 +683,7 @@ class _UserRowState extends State<_UserRow> {
           const SizedBox(width: AppSpacing.s3),
           // Trạng thái
           SizedBox(
-            width: 108,
+            width: 100,
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
@@ -706,7 +706,7 @@ class _UserRowState extends State<_UserRow> {
           const SizedBox(width: AppSpacing.s3),
           // Ngày tham gia
           SizedBox(
-            width: 104,
+            width: 96,
             child: Text(
               _fmtDate(user.createdAt),
               style: AppTypography.caption.copyWith(color: widget.muted),
@@ -715,7 +715,7 @@ class _UserRowState extends State<_UserRow> {
           const SizedBox(width: AppSpacing.s3),
           // Actions
           SizedBox(
-            width: 120,
+            width: 96,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               _ActionBtn(
                 icon: Icons.history_outlined,

@@ -111,7 +111,7 @@ class _MobileAppView extends StatefulWidget {
 class _MobileAppViewState extends State<_MobileAppView> {
   late final PageController _pageCtrl;
   int _currentPage = 0;
-  static const int _totalPages = 5;
+  static const int _totalPages = 4;
 
   @override
   void initState() {
@@ -157,7 +157,6 @@ class _MobileAppViewState extends State<_MobileAppView> {
                   )),
                   const _MobileCard(child: _StatsSection(compact: true)),
                   const _MobileCard(child: _FeaturesSection(compact: true)),
-                  const _MobileCard(child: _QuickGenerateSection(compact: true)),
                   const _MobileCard(child: _CTASection(compact: true)),
                 ],
               ),
@@ -245,11 +244,21 @@ class _MobileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        bottom: 80 + MediaQuery.of(context).padding.bottom,
-      ),
-      child: child,
+    final bottomPad = 80.0 + MediaQuery.of(context).padding.bottom;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: bottomPad),
+                child: Center(child: child),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -513,9 +522,10 @@ class _HeroSection extends StatelessWidget {
 
     return Container(
       width: double.infinity,
+      constraints: compact ? const BoxConstraints(minHeight: double.infinity) : const BoxConstraints(),
       padding: EdgeInsets.symmetric(
         horizontal: w > 800 ? 64 : (compact ? 20 : 24),
-        vertical: compact ? 24 : 64,
+        vertical: compact ? 0 : 64,
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -740,9 +750,10 @@ class _StatsSection extends StatelessWidget {
     ];
     return Container(
       color: card,
+      constraints: compact ? const BoxConstraints(minHeight: double.infinity) : const BoxConstraints(),
       padding: EdgeInsets.symmetric(
         horizontal: w > 800 ? 64 : 20,
-        vertical: compact ? 20 : 48,
+        vertical: compact ? 0 : 48,
       ),
       child: Center(
         child: ConstrainedBox(
@@ -946,9 +957,10 @@ class _FeaturesSection extends StatelessWidget {
     final col = w > 1000 ? 3 : (w > 640 ? 2 : 1);
     return Container(
       color: card,
+      constraints: compact ? const BoxConstraints(minHeight: double.infinity) : const BoxConstraints(),
       padding: EdgeInsets.symmetric(
         horizontal: w > 800 ? 64 : 20,
-        vertical: compact ? 20 : 72,
+        vertical: compact ? 0 : 72,
       ),
       child: Center(
         child: ConstrainedBox(
@@ -1171,9 +1183,9 @@ class _CTASection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final w = MediaQuery.sizeOf(context).width;
-    return Container(
+    final inner = Container(
       margin: EdgeInsets.symmetric(
-          horizontal: w > 800 ? 64 : 20, vertical: compact ? 16 : 56),
+          horizontal: w > 800 ? 64 : 20, vertical: compact ? 0 : 56),
       padding: EdgeInsets.all(compact ? 28 : 48),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -1191,6 +1203,7 @@ class _CTASection extends StatelessWidget {
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             'Sẵn sàng tăng tốc tài liệu hóa?',
@@ -1238,6 +1251,13 @@ class _CTASection extends StatelessWidget {
         ],
       ),
     );
+    if (compact) {
+      return SizedBox(
+        width: double.infinity,
+        child: inner,
+      );
+    }
+    return inner;
   }
 }
 
