@@ -1,13 +1,11 @@
 """
 Export service: chuyển nội dung Markdown sang MD / PDF / DOCX.
-
-THAY ĐỔI:
-- PDF: Dùng reportlab đúng cách, sinh file PDF hợp lệ (WeasyPrint fallback đã fix)
-- DOCX: Sinh DOCX hợp lệ, không bị lỗi "unreadable content"
 """
 
 import io
 import re
+import os
+import glob
 
 
 # ═════════════════════════════════════════════════════════════
@@ -19,29 +17,19 @@ def export_markdown(content_md: str) -> bytes:
 
 
 # ═════════════════════════════════════════════════════════════
-# 2) PDF  — dùng ReportLab (ổn định hơn WeasyPrint trong môi trường server)
+# 2) PDF  — dùng ReportLab
 # ═════════════════════════════════════════════════════════════
 def _register_pdf_fonts():
-    """
-    Đăng ký font Unicode (DejaVu / NotoSans) để hỗ trợ tiếng Việt trong PDF.
-    Thử theo thứ tự ưu tiên: DejaVu → Noto → fallback Helvetica.
-    Trả về tên font đã đăng ký (hoặc 'Helvetica' nếu không tìm thấy TTF).
-    """
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    import glob
 
-    # Danh sách tìm kiếm font TTF hỗ trợ Unicode
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     candidates = [
-        # DejaVu (thường có sẵn trên Ubuntu/Debian)
-        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",          "DejaVuSans"),
-        ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",     "DejaVuSans-Bold"),
-        # Noto Sans (hỗ trợ tiếng Việt rất tốt)
-        ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",      "NotoSans"),
-        ("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",         "NotoSans-Bold"),
-        # Liberation (tương đương Arial)
-        ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "LiberationSans"),
-        ("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",    "LiberationSans-Bold"),
+        (os.path.join(base_dir, "fonts", "Inter-Regular.ttf"), "Inter"),
+        (os.path.join(base_dir, "fonts", "Inter-Bold.ttf"),    "Inter-Bold"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",      "DejaVuSans"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "DejaVuSans-Bold"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",  "DejaVuSansMono"),
     ]
 
     registered = {}
@@ -54,14 +42,20 @@ def _register_pdf_fonts():
         except Exception:
             pass
 
-    # Ưu tiên DejaVu → Noto → Liberation
+    # Đăng ký DejaVuSansMono riêng cho code block
+    mono_path = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
+    if os.path.exists(mono_path) and "DejaVuSansMono" not in registered:
+        try:
+            pdfmetrics.registerFont(TTFont("DejaVuSansMono", mono_path))
+        except Exception:
+            pass
+
+    # Ưu tiên Inter → DejaVuSans → fallback Helvetica
     for base, bold in [
+        ("Inter",      "Inter-Bold"),
         ("DejaVuSans", "DejaVuSans-Bold"),
-        ("NotoSans", "NotoSans-Bold"),
-        ("LiberationSans", "LiberationSans-Bold"),
     ]:
         if base in registered:
-            # Đăng ký bộ font (regular + bold) để dùng <b> trong Paragraph
             try:
                 from reportlab.pdfbase.pdfmetrics import registerFontFamily
                 bold_name = bold if bold in registered else base
@@ -71,15 +65,10 @@ def _register_pdf_fonts():
                 pass
             return base, bold if bold in registered else base
 
-    # Không tìm thấy font TTF nào → Helvetica (không hỗ trợ tiếng Việt nhưng không crash)
     return "Helvetica", "Helvetica-Bold"
 
 
 def export_pdf(title: str, content_md: str) -> bytes:
-    """
-    Markdown → PDF dùng ReportLab Platypus với font Unicode (hỗ trợ tiếng Việt).
-    Sinh file PDF hợp lệ, không bị lỗi 'Failed to load PDF document'.
-    """
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -91,12 +80,8 @@ def export_pdf(title: str, content_md: str) -> bytes:
         )
         from reportlab.lib.enums import TA_LEFT
     except ImportError:
-        raise RuntimeError(
-            "Thư viện reportlab chưa được cài đặt. "
-            "Chạy: pip install reportlab==4.2.5"
-        )
+        raise RuntimeError("Thư viện reportlab chưa được cài đặt.")
 
-    # Đăng ký font Unicode để hiển thị tiếng Việt
     FONT_NORMAL, FONT_BOLD = _register_pdf_fonts()
 
     buf = io.BytesIO()
@@ -111,16 +96,12 @@ def export_pdf(title: str, content_md: str) -> bytes:
     )
 
     styles = getSampleStyleSheet()
-    # Override styles
     PRIMARY = colors.HexColor("#4F46E5")
 
     style_title = ParagraphStyle(
-        "DocTitle",
-        parent=styles["Title"],
-        textColor=PRIMARY,
-        fontSize=20,
-        spaceAfter=16,
-        fontName=FONT_BOLD,
+        "DocTitle", parent=styles["Title"],
+        textColor=PRIMARY, fontSize=20,
+        spaceAfter=16, fontName=FONT_BOLD,
     )
     style_h1 = ParagraphStyle(
         "H1", parent=styles["Heading1"],
@@ -138,23 +119,18 @@ def export_pdf(title: str, content_md: str) -> bytes:
     )
     style_body = ParagraphStyle(
         "Body", parent=styles["Normal"],
-        fontName=FONT_NORMAL,
-        fontSize=11, leading=16, spaceAfter=6,
+        fontName=FONT_NORMAL, fontSize=11, leading=16, spaceAfter=6,
     )
     style_code = ParagraphStyle(
         "Code", parent=styles["Code"],
-        fontName="Courier", fontSize=9,
+        fontName="DejaVuSansMono", fontSize=9,
         backColor=colors.HexColor("#F3F4F6"),
-        borderColor=colors.HexColor("#4F46E5"),
-        borderWidth=0,
-        borderPadding=8,
-        leading=13,
-        spaceAfter=8,
+        borderPadding=8, leading=13, spaceAfter=8,
     )
     style_bullet = ParagraphStyle(
         "Bullet", parent=styles["Normal"],
-        fontName=FONT_NORMAL,
-        fontSize=11, leading=16, leftIndent=16, spaceAfter=4,
+        fontName=FONT_NORMAL, fontSize=11,
+        leading=16, leftIndent=16, spaceAfter=4,
     )
 
     story = []
@@ -172,8 +148,7 @@ def export_pdf(title: str, content_md: str) -> bytes:
         # Code fence
         if line.strip().startswith("```"):
             if in_code:
-                code_text = "\n".join(code_buf)
-                story.append(Preformatted(code_text, style_code))
+                story.append(Preformatted("\n".join(code_buf), style_code))
                 code_buf = []
                 in_code = False
             else:
@@ -202,7 +177,9 @@ def export_pdf(title: str, content_md: str) -> bytes:
 
         # Horizontal rule
         if re.match(r"^[-*_]{3,}$", line.strip()):
-            story.append(HRFlowable(color=colors.HexColor("#E5E7EB"), thickness=1, spaceAfter=8))
+            story.append(HRFlowable(
+                color=colors.HexColor("#E5E7EB"), thickness=1, spaceAfter=8
+            ))
             i += 1
             continue
 
@@ -232,7 +209,6 @@ def export_pdf(title: str, content_md: str) -> bytes:
             bq_style = ParagraphStyle(
                 "BQ", parent=style_body,
                 leftIndent=20, textColor=colors.HexColor("#6B7280"),
-                borderPadding=(0, 0, 0, 12),
             )
             story.append(Paragraph(_inline_html(text), bq_style))
             i += 1
@@ -257,60 +233,41 @@ def export_pdf(title: str, content_md: str) -> bytes:
 
 
 def _escape_html(s: str) -> str:
-    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _inline_html(text: str) -> str:
-    """Convert **bold**, *italic*, `code` to ReportLab HTML tags."""
+    """Convert **bold**, *italic*, `code` sang ReportLab HTML tags."""
     text = _escape_html(text)
-    # Bold
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
-    # Italic
     text = re.sub(r"\*(.+?)\*", r"<i>\1</i>", text)
-    # Inline code
-    text = re.sub(r"`(.+?)`", r'<font name="Courier" size="9">\1</font>', text)
+    text = re.sub(r"`(.+?)`", r'<font name="DejaVuSansMono" size="9">\1</font>', text)
     return text
 
 
 # ═════════════════════════════════════════════════════════════
-# 3) DOCX — python-docx, sinh file hợp lệ không bị lỗi Word
+# 3) DOCX — python-docx
 # ═════════════════════════════════════════════════════════════
 def export_docx(title: str, content_md: str) -> bytes:
-    """
-    Markdown → DOCX (python-docx).
-    File DOCX sinh ra hợp lệ, không bị lỗi "unreadable content" khi mở Word.
-
-    Lưu ý quan trọng:
-    - KHÔNG dùng doc.styles[...] để set font trực tiếp trên style gốc
-      vì python-docx đôi khi làm hỏng styles.xml → Word báo lỗi.
-    - Thay vào đó: set font trực tiếp trên từng run sau khi add_paragraph.
-    """
     try:
         from docx import Document
-        from docx.shared import Pt, RGBColor, Inches
+        from docx.shared import Pt, RGBColor
         from docx.oxml.ns import qn
         from docx.oxml import OxmlElement
     except ImportError:
-        raise RuntimeError(
-            "Thư viện python-docx chưa được cài đặt. "
-            "Chạy: pip install python-docx==1.1.2"
-        )
+        raise RuntimeError("Thư viện python-docx chưa được cài đặt.")
 
     doc = Document()
+    _set_doc_default_font(doc, "DejaVuSans", 11)
 
-    # ── Cài font mặc định toàn document (không sửa style object) ──
-    _set_doc_default_font(doc, "Calibri", 11)
-
-    # ── Tiêu đề chính ──
+    # Tiêu đề chính
     title_para = doc.add_paragraph()
     title_para.paragraph_format.space_after = Pt(12)
     title_run = title_para.add_run(title)
-    title_run.font.name = "Calibri"
+    title_run.font.name = "DejaVuSans"
     title_run.font.size = Pt(20)
     title_run.font.bold = True
     title_run.font.color.rgb = RGBColor(0x4F, 0x46, 0xE5)
-
-    # Đường kẻ ngang sau tiêu đề
     _add_horizontal_rule(title_para)
 
     lines = content_md.splitlines()
@@ -346,10 +303,10 @@ def export_docx(title: str, content_md: str) -> bytes:
             heading_para.paragraph_format.space_before = Pt(10)
             heading_para.paragraph_format.space_after = Pt(4)
             run = heading_para.add_run(text)
-            run.font.name = "Calibri"
+            run.font.name = "DejaVuSans"
             run.font.bold = True
             run.font.color.rgb = RGBColor(0x4F, 0x46, 0xE5)
-            run.font.size = Pt(18 - (lvl - 1) * 2)  # 18, 16, 14, 12
+            run.font.size = Pt(18 - (lvl - 1) * 2)
             i += 1
             continue
 
@@ -365,7 +322,7 @@ def export_docx(title: str, content_md: str) -> bytes:
             while i < len(lines) and re.match(r"^\s*[-*+]\s+", lines[i]):
                 text = re.sub(r"^\s*[-*+]\s+", "", lines[i])
                 p = doc.add_paragraph(style="List Bullet")
-                _add_inline(p, text, base_size=11, base_font="Calibri")
+                _add_inline(p, text, base_size=11, base_font="DejaVuSans")
                 i += 1
             continue
 
@@ -374,7 +331,7 @@ def export_docx(title: str, content_md: str) -> bytes:
             while i < len(lines) and re.match(r"^\s*\d+\.\s+", lines[i]):
                 text = re.sub(r"^\s*\d+\.\s+", "", lines[i])
                 p = doc.add_paragraph(style="List Number")
-                _add_inline(p, text, base_size=11, base_font="Calibri")
+                _add_inline(p, text, base_size=11, base_font="DejaVuSans")
                 i += 1
             continue
 
@@ -384,14 +341,14 @@ def export_docx(title: str, content_md: str) -> bytes:
             p = doc.add_paragraph()
             p.paragraph_format.left_indent = Pt(20)
             run = p.add_run(text)
-            run.font.name = "Calibri"
+            run.font.name = "DejaVuSans"
             run.font.size = Pt(11)
             run.font.italic = True
             run.font.color.rgb = RGBColor(0x6B, 0x72, 0x80)
             i += 1
             continue
 
-        # Empty line → small spacer paragraph
+        # Empty line
         if not line.strip():
             sp = doc.add_paragraph()
             sp.paragraph_format.space_after = Pt(4)
@@ -401,10 +358,9 @@ def export_docx(title: str, content_md: str) -> bytes:
         # Normal paragraph
         p = doc.add_paragraph()
         p.paragraph_format.space_after = Pt(6)
-        _add_inline(p, line, base_size=11, base_font="Calibri")
+        _add_inline(p, line, base_size=11, base_font="DejaVuSans")
         i += 1
 
-    # Close open code block
     if in_code and code_buffer:
         _add_code_block(doc, "\n".join(code_buffer))
 
@@ -416,15 +372,9 @@ def export_docx(title: str, content_md: str) -> bytes:
 # ── Helpers DOCX ──────────────────────────────────────────────
 
 def _set_doc_default_font(doc, font_name: str, font_size_pt: int):
-    """
-    Đặt font mặc định toàn document qua settings XML thay vì sửa style object
-    → tránh làm hỏng styles.xml.
-    """
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
-    from docx.shared import Pt
 
-    # docDefaults → rPrDefault
     styles_elem = doc.styles.element
     doc_defaults = styles_elem.find(qn("w:docDefaults"))
     if doc_defaults is None:
@@ -441,7 +391,6 @@ def _set_doc_default_font(doc, font_name: str, font_size_pt: int):
         rPr = OxmlElement("w:rPr")
         rPrDefault.append(rPr)
 
-    # rFonts
     rFonts = rPr.find(qn("w:rFonts"))
     if rFonts is None:
         rFonts = OxmlElement("w:rFonts")
@@ -449,7 +398,6 @@ def _set_doc_default_font(doc, font_name: str, font_size_pt: int):
     rFonts.set(qn("w:ascii"), font_name)
     rFonts.set(qn("w:hAnsi"), font_name)
 
-    # sz (half-points)
     sz = rPr.find(qn("w:sz"))
     if sz is None:
         sz = OxmlElement("w:sz")
@@ -458,7 +406,6 @@ def _set_doc_default_font(doc, font_name: str, font_size_pt: int):
 
 
 def _add_code_block(doc, code_text: str):
-    """Thêm khối code vào DOCX với nền xám và font monospace."""
     from docx.shared import Pt, RGBColor
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
@@ -469,7 +416,6 @@ def _add_code_block(doc, code_text: str):
     p.paragraph_format.space_before = Pt(6)
     p.paragraph_format.space_after = Pt(6)
 
-    # Nền xám nhạt qua pPr shd
     pPr = p._p.get_or_add_pPr()
     shd = OxmlElement("w:shd")
     shd.set(qn("w:val"), "clear")
@@ -478,13 +424,12 @@ def _add_code_block(doc, code_text: str):
     pPr.append(shd)
 
     run = p.add_run(code_text)
-    run.font.name = "Courier New"
+    run.font.name = "DejaVuSansMono"
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(0x1F, 0x29, 0x37)
 
 
 def _add_horizontal_rule(para):
-    """Thêm đường kẻ ngang dưới paragraph qua pBdr."""
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
 
@@ -499,8 +444,7 @@ def _add_horizontal_rule(para):
     pPr.append(pBdr)
 
 
-def _add_inline(paragraph, text: str, base_size: int = 11, base_font: str = "Calibri"):
-    """Parse **bold**, *italic*, `code` rồi thêm vào paragraph."""
+def _add_inline(paragraph, text: str, base_size: int = 11, base_font: str = "DejaVuSans"):
     from docx.shared import Pt, RGBColor
 
     pattern = re.compile(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)")
@@ -520,7 +464,7 @@ def _add_inline(paragraph, text: str, base_size: int = 11, base_font: str = "Cal
             r.font.size = Pt(base_size)
         elif part.startswith("`") and part.endswith("`"):
             r = paragraph.add_run(part[1:-1])
-            r.font.name = "Courier New"
+            r.font.name = "DejaVuSansMono"
             r.font.size = Pt(9)
         else:
             r = paragraph.add_run(part)
@@ -532,10 +476,6 @@ def _add_inline(paragraph, text: str, base_size: int = 11, base_font: str = "Cal
 # DISPATCHER
 # ═════════════════════════════════════════════════════════════
 def export_document(title: str, content_md: str, fmt: str) -> tuple[bytes, str, str]:
-    """
-    Trả về (bytes, mime, filename).
-    fmt: md | pdf | docx
-    """
     safe_title = re.sub(r"[^\w\-_. ]", "_", title or "document").strip() or "document"
     fmt = (fmt or "").lower()
 

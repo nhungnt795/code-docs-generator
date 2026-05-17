@@ -5,6 +5,7 @@ services:
     build: .
     container_name: docgen-fastapi
     restart: always
+    user: "1000:1000"
     ports:
       - "8000:8000"
     depends_on:
@@ -16,10 +17,8 @@ services:
       - DB_HOST=postgres
       - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}
     volumes:
-      # Mount data để giữ lại avatar khi rebuild container
-      - ../data:/app/data
-      # Mount ai_module để code AI vẫn dùng được
       - ../ai_module:/app/ai_module
+      - ./:/app
 
   postgres:
     image: pgvector/pgvector:pg13

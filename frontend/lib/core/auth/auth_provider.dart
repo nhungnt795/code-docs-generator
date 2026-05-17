@@ -1,8 +1,4 @@
 // lib/core/auth/auth_provider.dart
-//
-// Thêm updateUser() để profile screen có thể cập nhật user state
-// → sidebar và topbar tự rebuild hiển thị đúng thông tin mới.
-
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,8 +7,11 @@ import '../api/api_client.dart';
 import '../api/models.dart';
 import '../theme/theme_provider.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AuthState — trạng thái đăng nhập hiện tại của App
+// ─────────────────────────────────────────────────────────────────────────────
 class AuthState {
-  final User? user;
+  final UserModel? user;
   final bool loading;
   final String? error;
 
@@ -22,7 +21,7 @@ class AuthState {
   bool get isAdmin => user?.isAdmin ?? false;
 
   AuthState copyWith({
-    User? user,
+    UserModel? user,
     bool? loading,
     String? error,
     bool clearUser = false,
@@ -35,38 +34,45 @@ class AuthState {
       );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AuthNotifier — đọc/ghi session từ SharedPreferences + gọi API login/register
+// ─────────────────────────────────────────────────────────────────────────────
 class AuthNotifier extends StateNotifier<AuthState> {
   final SharedPreferences _prefs;
+
   static const _kUserJsonKey = 'auth_user_json';
 
   AuthNotifier(this._prefs) : super(const AuthState()) {
     _restoreFromCache();
   }
 
+  /// Phục hồi user từ SharedPreferences khi App khởi động
   void _restoreFromCache() {
     final raw = _prefs.getString(_kUserJsonKey);
     if (raw == null) return;
     try {
-      final user = User.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      final user = UserModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
       state = state.copyWith(user: user);
     } catch (_) {
+      // Cache hỏng — xóa luôn
       _prefs.remove(_kUserJsonKey);
     }
   }
 
-  Future<void> _persist(User user) async {
+  Future<void> _persist(UserModel user) async {
     await _prefs.setString(_kUserJsonKey, jsonEncode(user.toJson()));
   }
 
-  // ── Login ──────────────────────────────────────────────────────────────────
+  // ── API: Đăng nhập ─────────────────────────────────────────────────────────
   Future<bool> login(String email, String password) async {
     state = state.copyWith(loading: true, clearError: true);
     try {
-      final res = await ApiClient.instance.post<User>(
+      final res = await ApiClient.instance.post<UserModel>(
         '/api/auth/login',
         body: {'email': email, 'password': password},
-        fromData: (d) => User.fromJson(d as Map<String, dynamic>),
+        fromData: (d) => UserModel.fromJson(d as Map<String, dynamic>),
       );
+
       if (res.success && res.data != null) {
         await _persist(res.data!);
         state = state.copyWith(user: res.data, loading: false);
@@ -84,7 +90,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // ── Register ───────────────────────────────────────────────────────────────
+  // ── API: Đăng ký ───────────────────────────────────────────────────────────
   Future<bool> register({
     required String email,
     required String password,
@@ -92,16 +98,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(loading: true, clearError: true);
     try {
-      final res = await ApiClient.instance.post<User>(
+      final res = await ApiClient.instance.post<UserModel>(
         '/api/auth/register',
         body: {
           'email': email,
           'password': password,
           'full_name': fullName,
         },
-        fromData: (d) => User.fromJson(d as Map<String, dynamic>),
+        fromData: (d) => UserModel.fromJson(d as Map<String, dynamic>),
       );
-      if (res.success) {
+
+      if (res.success && res.data != null) {
+        // Đăng ký xong: KHÔNG tự đăng nhập, để user đăng nhập lại
         state = state.copyWith(loading: false);
         return true;
       } else {
@@ -117,26 +125,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // ── Update user (cập nhật tên/avatar/email sau khi thay đổi profile) ───────
-  // Gọi sau khi uploadAvatar, updateProfile thành công
-  // → toàn bộ widget watch currentUserProvider tự rebuild
-  Future<void> updateUser(User updatedUser) async {
-    await _persist(updatedUser);
-    state = state.copyWith(user: updatedUser);
-  }
-
-  // ── Logout ─────────────────────────────────────────────────────────────────
+  // ── Đăng xuất ──────────────────────────────────────────────────────────────
   Future<void> logout() async {
     await _prefs.remove(_kUserJsonKey);
     state = const AuthState();
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Provider
+// ─────────────────────────────────────────────────────────────────────────────
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final prefs = ref.watch(sharedPrefsProvider);
   return AuthNotifier(prefs);
 });
 
-final currentUserProvider = Provider<User?>((ref) {
+/// Shortcut provider để đọc user nhanh
+final currentUserProvider = Provider<UserModel?>((ref) {
   return ref.watch(authProvider).user;
 });

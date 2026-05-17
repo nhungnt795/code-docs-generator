@@ -1,49 +1,69 @@
 import sys
 import os
 import pytest
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+try:
+    from pydantic.warnings import PydanticDeprecatedSince20
+    warnings.filterwarnings("ignore", category=PydanticDeprecatedSince20)
+except ImportError:
+    pass
+
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 import sqlalchemy
+from sqlalchemy import event
 from sqlalchemy.pool import StaticPool
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, close_all_sessions
 
-# CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG (MODULE RESOLUTION)
+original_table_new = sqlalchemy.Table.__new__
+
+def patched_table_new(cls, *args, **kwargs):
+    kwargs["extend_existing"] = True
+    return original_table_new(cls, *args, **kwargs)
+
+sqlalchemy.Table.__new__ = patched_table_new
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, "../../../")) 
-ai_module_path = os.path.join(project_root, "ai_module")
 backend_path = os.path.join(project_root, "backend")
+ai_module_path = os.path.join(project_root, "ai_module")
 
 for path in [project_root, backend_path, ai_module_path]:
     if path not in sys.path:
         sys.path.insert(0, path)
 
+def pytest_configure(config):
+    try:
+        import sqlalchemy.orm.decl_api as decl_api
+        original_init = decl_api.registry.__init__
+        def patched_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            self._class_registry = {}  
+        decl_api.registry.__init__ = patched_init
+    except Exception:
+        pass
+
 import ai_module.model.rag_engine as rag_engine_module
 
-# CẤU HÌNH ĐÁNH CHẶN KẾT NỐI HẠ TẦNG AI (LLM / KAGGLE MOCK LAYER)
-# Phân đoạn mã nguồn giả lập bên dưới tạm thời được vô hiệu hóa để kết nối trực tiếp đến mô hình phân tích thực tế.
-# Kích hoạt lại khối mã này trong trường hợp cần tối ưu hóa tốc độ kiểm thử cô lập.
+def dummy_rag_init(self, *args, **kwargs):
+    print("\n[INFO] Đã kích hoạt chặn kết nối ngoại vi. Vận hành RAG ở chế độ giả lập an toàn.")
+    self.db = MagicMock()
+    self.embedder = MagicMock()
+    self.embedder.get_embedding.return_value = [0.1] * 768
+    self.db.search_similar_code.return_value = [
+        {"score": 0.95, "code": "def add(a,b): pass", "graph": "GraphNode"}
+    ]
+    self.llm = MagicMock()
+    self.llm.generate.return_value = "# Tài liệu cấu trúc giả lập thành công"
 
-# def dummy_rag_init(self, *args, **kwargs):
-#     print("\n[INFO] Đã kích hoạt chặn kết nối ngoại vi. Vận hành RAG ở chế độ giả lập.")
-#     self.db = MagicMock()
-#     self.embedder = MagicMock()
-#     self.embedder.get_embedding.return_value = [0.1] * 768
-#     self.db.search_similar_code.return_value = [
-#         {"score": 0.95, "code": "def add(a,b): pass", "graph": "GraphNode"}
-#     ]
-#     self.llm = MagicMock()
-#     self.llm.generate.return_value = "# Documented Code\nThis function calculates the sum."
+rag_engine_module.GraphRAGEngine.__init__ = dummy_rag_init
 
-# rag_engine_module.GraphRAGEngine.__init__ = dummy_rag_init
-
-# CƠ CHẾ ĐÁNH CHẶN KẾT NỐI CƠ SỞ DỮ LIỆU (DATABASE INTERCEPTION LAYER)
 original_create_engine = sqlalchemy.create_engine
 
 def intercept_create_engine(url, *args, **kwargs):
-    """
-    Đánh chặn toàn bộ các yêu cầu khởi tạo kết nối cơ sở dữ liệu Postgres thực tế,
-    chuyển hướng luồng dữ liệu một cách an toàn về SQLite In-Memory cục bộ.
-    """
     print(f"\n[INFO] Thực hiện đánh chặn phiên kết nối cơ sở dữ liệu: {url} -> Chuyển hướng sang SQLite In-Memory.")
     safe_kwargs = {
         "connect_args": {"check_same_thread": False},
@@ -53,8 +73,6 @@ def intercept_create_engine(url, *args, **kwargs):
 
 sqlalchemy.create_engine = intercept_create_engine
 
-# NẠP MÃ NGUỒN PHÂN HỆ BACKEND (DEVELOPER SOURCE CODES)
-# Bơm cấu hình tham số môi trường hệ thống nhằm đảm bảo tính ổn định cho PGVectorConnector
 os.environ["DB_PORT"] = "5435"
 os.environ["DB_HOST"] = "127.0.0.1"
 os.environ["DB_NAME"] = "web_and_app_db"
@@ -62,22 +80,30 @@ os.environ["DB_USER"] = "airflow"
 os.environ["DB_PASS"] = "airflow"
 
 try:
-    from backend.main import app
-    from backend.database import get_db
-    from backend import models
+    from main import app
+    from database import get_db, Base
+    import models
 except ImportError as e:
-    print(f"[ERROR] Quá trình nhập module thất bại. Yêu cầu kiểm tra cấu trúc thư mục backend/. Chi tiết: {e}")
+    print(f"[ERROR] Quá trình nhập module thất bại. Chi tiết: {e}")
     raise
 
-# ĐỊNH TUYẾN LẠI PHỤ THUỘC FASTAPI (FASTAPI DEPENDENCY OVERRIDES)
+
+
 TEST_DB_URL = "sqlite:///:memory:"
 test_engine = sqlalchemy.create_engine(TEST_DB_URL)
+
+@event.listens_for(test_engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
-models.Base.metadata.create_all(bind=test_engine)
+print("[PROCESS] Khởi tạo cấu trúc cơ sở dữ liệu ảo sạch cho bộ test suite...")
+Base.metadata.create_all(bind=test_engine)
 
 def override_get_db():
-    """Hàm ghi đè phiên kết nối cơ sở dữ liệu (Database Session Dependency Override) cho FastAPI client."""
     db = TestingSessionLocal()
     try:
         yield db
@@ -86,23 +112,44 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
-# PHẦN TỬ ĐIỀU PHỐI MÔI TRƯỜNG (TEST FIXTURES)
 @pytest.fixture(scope="module")
 def api_client():
-    """Khởi tạo và cung cấp TestClient phục vụ các kịch bản kiểm thử tích hợp API đầu cuối."""
     return TestClient(app)
 
-# Khối quản lý trạng thái giả lập tạm thời được đóng lại do không tương thích cấu trúc GraphRAGEngine thực tế.
+@pytest.fixture(scope="module")
+def client():
+    return TestClient(app)
+
 @pytest.fixture
 def mock_rag_engine():
     import ai_module.model.rag_engine as rag_engine_module
     from unittest.mock import MagicMock
+    
     engine = rag_engine_module.GraphRAGEngine()
-    engine.embedder = MagicMock()
-    engine.db = MagicMock()
-    engine.llm = MagicMock()
-    # Reset mock state
+    
+    if not hasattr(engine, "embedder") or engine.embedder is None:
+        engine.embedder = MagicMock()
+    if not hasattr(engine, "db") or engine.db is None:
+        engine.db = MagicMock()
+    if not hasattr(engine, "llm") or engine.llm is None:
+        engine.llm = MagicMock()
+        
     engine.embedder.get_embedding.reset_mock()
     engine.db.search_similar_code.reset_mock()
     engine.llm.generate.reset_mock()
+        
     return engine
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_database_connections_after_session():
+    yield
+    print("\n[QA PROCESS] Đang cưỡng chế giải phóng kết nối tồn dư để chống treo Terminal...")
+    try:
+        if 'test_engine' in globals():
+            global test_engine
+            test_engine.dispose()
+            print("[SUCCESS] Đã dọn dẹp xong Engine Test SQLite.")
+        close_all_sessions()
+        print("[SUCCESS] Đã giải phóng hoàn toàn các phiên kết nối ngầm.")
+    except Exception as e:
+        print(f"[WARNING] Có lỗi xảy ra khi giải phóng tài nguyên: {e}")

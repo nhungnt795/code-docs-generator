@@ -43,7 +43,7 @@ OTP_PURPOSE_RESET = "RESET_PASSWORD"
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     existing = (
         db.query(models.User)
-        .filter(models.User.email == user.email)
+        .filter(models.User.email.ilike(user.email.strip()))
         .first()
     )
     if existing:
@@ -102,7 +102,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     user = (
         db.query(models.User)
-        .filter(models.User.email == credentials.email)
+        .filter(models.User.email.ilike(credentials.email.strip()))
         .first()
     )
     if not user or not verify_password(credentials.password, user.password_hash):
@@ -137,7 +137,7 @@ def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
 def verify_account(data: schemas.VerifyOTP, db: Session = Depends(get_db)):
     user = (
         db.query(models.User)
-        .filter(models.User.email == data.email)
+        .filter(models.User.email.ilike(data.email.strip()))
         .first()
     )
     if not user:
@@ -188,7 +188,7 @@ def verify_account(data: schemas.VerifyOTP, db: Session = Depends(get_db)):
 def resend_otp(data: schemas.ResendOTP, db: Session = Depends(get_db)):
     user = (
         db.query(models.User)
-        .filter(models.User.email == data.email)
+        .filter(models.User.email.ilike(data.email.strip()))
         .first()
     )
     if not user:
@@ -226,16 +226,12 @@ def resend_otp(data: schemas.ResendOTP, db: Session = Depends(get_db)):
 def forgot_password(data: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = (
         db.query(models.User)
-        .filter(models.User.email == data.email)
+        .filter(models.User.email.ilike(data.email.strip()))
         .first()
     )
-    # Vẫn trả về success để tránh leak email tồn tại
+    # Trả về lỗi rõ ràng khi email không tồn tại
     if not user:
-        return schemas.ActionResult(
-            success=True,
-            message="Nếu email tồn tại, mã OTP đã được gửi.",
-            data=None,
-        )
+        raise HTTPException(status_code=404, detail="Email này chưa được đăng ký tài khoản")
 
     if user.is_locked:
         raise HTTPException(status_code=403, detail="Tài khoản đang bị khóa")
@@ -265,7 +261,7 @@ def forgot_password(data: schemas.ForgotPasswordRequest, db: Session = Depends(g
 def reset_password(data: schemas.ResetPassword, db: Session = Depends(get_db)):
     user = (
         db.query(models.User)
-        .filter(models.User.email == data.email)
+        .filter(models.User.email.ilike(data.email.strip()))
         .first()
     )
     if not user:

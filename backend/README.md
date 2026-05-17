@@ -1,174 +1,198 @@
-# Backend DocGen VN — Cụm 1
+# DocGen VN — Backend API
 
-## 🎯 Đã xử lý
+Backend của hệ thống tự động sinh tài liệu mã nguồn Tiếng Việt, xây dựng bằng **FastAPI** + **PostgreSQL** + **AI/RAG Engine**.
 
-| Yêu cầu | Trạng thái | File |
-|---|---|---|
-| I.1 Xuất MD/PDF/DOCX | ✅ | `export_service.py`, `routers/documents.py` |
-| I.5 Lưu đúng bản đã sửa | ✅ | `routers/documents.py` (PUT /api/docs/{id}) |
-| I.6 Phân quyền lịch sử | ✅ | `routers/documents.py` (check `user_id`) |
-| I.7 Timestamp đúng | ✅ | `models.Document.updated_at` cập nhật khi sửa |
-| I.9 Dashboard mới: `pending_requests`, filter thời gian | ✅ | `routers/admin.py` |
-| I.9 Lock/unlock + bulk + filter + search | ✅ | `routers/admin.py` |
-| I.9 Xem usage & history từng user | ✅ | `GET /api/admin/users/{id}` |
-| I.10 API gửi feedback | ✅ | `routers/feedback.py` |
-| II Auth: OTP, reset password, xử lý lỗi chi tiết | ✅ | `routers/auth.py` |
-| II Profile: đổi tên/email | ✅ | `routers/profile.py` |
-| II Khóa tài khoản | ✅ | `POST /api/admin/users/{id}/lock` |
-| II Check Syntax — không tự raise, có warning | ✅ | `validators.check_syntax` |
-| II Quản lý Model AI: bật/tắt | ✅ | `routers/admin.py` + `public.py` |
+---
 
-## 📦 Endpoints
+## Yêu cầu hệ thống
 
-### Auth
-- `POST /api/auth/register` — Đăng ký + gửi OTP
-- `POST /api/auth/verify` — Xác thực OTP kích hoạt
-- `POST /api/auth/login` — Đăng nhập (chặn nếu chưa kích hoạt / bị khóa)
-- `POST /api/auth/resend-otp` — Gửi lại OTP (ACTIVATE | RESET_PASSWORD)
-- `POST /api/auth/forgot-password` — Yêu cầu OTP đặt lại mật khẩu
-- `POST /api/auth/reset-password` — Xác nhận OTP + mật khẩu mới
+- Python 3.11+
+- PostgreSQL 13+ (có hỗ trợ pgvector)
+- Docker & Docker Compose (khuyên dùng)
+- pip
 
-### Profile
-- `GET  /api/users/{id}` — Lấy profile
-- `PUT  /api/users/{id}/profile` — Đổi tên/email
-- `PUT  /api/users/{id}/password` — Đổi mật khẩu
-- `POST /api/users/{id}/avatar` — Upload avatar
+---
 
-### Documents
-- `POST   /api/docs/generate?user_id=` — Sinh tài liệu (lưu vào DB)
-- `POST   /api/docs/generate/guest` — Sinh cho khách (không lưu)
-- `POST   /api/docs/check-syntax` — Check syntax riêng (trả warning)
-- `GET    /api/docs/history/{user_id}` — Lịch sử
-- `GET    /api/docs/{id}?user_id=` — Chi tiết + versions
-- `PUT    /api/docs/{id}?user_id=` — Sửa (tạo version mới)
-- `DELETE /api/docs/{id}?user_id=` — Xóa
-- `GET    /api/docs/{id}/export?format=md|pdf|docx&user_id=` — Tải file
-- `POST   /api/docs/export` — Xuất từ nội dung tự do (cho guest)
+## Cấu trúc thư mục
 
-### Admin
-- `GET  /api/admin/dashboard?admin_id=&range_key=today|week|month|year|custom|all`
-- `GET  /api/admin/users?admin_id=&status=all|active|locked|inactive&search=`
-- `GET  /api/admin/users/{id}?admin_id=` — Chi tiết + usage + history
-- `POST /api/admin/users/{id}/lock?admin_id=`
-- `POST /api/admin/users/{id}/unlock?admin_id=`
-- `POST /api/admin/users/bulk?admin_id=` — body `{user_ids: [...], action: "LOCK|UNLOCK|DELETE"}`
-- `POST /api/admin/promote/{id}?admin_id=`
-- `GET  /api/admin/logs?admin_id=`
-- `GET  /api/admin/models?admin_id=` — Danh sách model AI
-- `PUT  /api/admin/models/{model_type}?admin_id=` — Bật/tắt model
-- `GET  /api/admin/feedbacks?admin_id=&min_rating=`
-
-### Feedback (user)
-- `POST /api/feedback?user_id=` — body `{rating: 1-5, content?: ""}`
-- `GET  /api/feedback/my?user_id=`
-
-### Public
-- `GET /api/public/models` — Frontend lấy list model active để hiện cho user chọn
-
-## 🚀 Deploy
-
-### Local (dev)
-
-```bash
-cd backend
-cp .env.example .env  # rồi điền giá trị
-docker compose up --build
+```
+backend/
+├── main.py               # Khởi tạo FastAPI, CORS, static files, seed data
+├── database.py           # Engine + session SQLAlchemy
+├── models.py             # SQLAlchemy models (User, Document, ...)
+├── schemas.py            # Pydantic schemas (request/response)
+├── auth_helpers.py       # Bcrypt password, OTP, require_admin/user
+├── validators.py         # Kiểm tra syntax code (tree-sitter)
+├── email_service.py      # Gửi OTP qua email (template HTML)
+├── export_service.py     # Xuất tài liệu MD / PDF / DOCX
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yaml
+├── data/
+│   └── avatars/          # Ảnh đại diện người dùng (static files)
+└── routers/
+    ├── auth.py           # /api/auth — đăng ký, đăng nhập, OTP, reset password
+    ├── profile.py        # /api/users — đổi tên, email, mật khẩu, avatar
+    ├── documents.py      # /api/docs — sinh, sửa, xuất tài liệu
+    ├── admin.py          # /api/admin — dashboard, quản lý user & model AI
+    ├── feedback.py       # /api/feedback — gửi đánh giá
+    ├── public.py         # /api/public — danh sách model AI đang hoạt động
+    └── contact.py        # /api/contact — liên hệ
 ```
 
-### AWS EC2 (production)
+---
 
-1. Copy thư mục `backend/` lên server (qua WinSCP).
-2. Tạo file `.env` từ `.env.example`, điền `DB_USER`, `DB_PASS`, `DB_NAME`, `SMTP_*`.
-3. Chạy:
+## Cài đặt & Chạy
+
+### Cách 1 — Docker Compose (khuyên dùng)
 
 ```bash
-cd backend
-docker compose down       # nếu đang chạy bản cũ
+# 1. Tạo file .env từ mẫu
+cp .env.example .env
+# Chỉnh sửa .env cho phù hợp (xem mục Biến môi trường bên dưới)
+
+# 2. Build và chạy
 docker compose up -d --build
+
+# 3. Tạo tài khoản admin lần đầu
+docker exec -it docgen-fastapi python create_admin.py
+
+# API sẵn sàng tại http://localhost:8000
+```
+
+### Cách 2 — Chạy trực tiếp (local dev)
+
+```bash
+# 1. Tạo virtual environment
+python -m venv venv
+source venv/bin/activate        # Linux/Mac
+venv\Scripts\activate           # Windows
+
+# 2. Cài dependencies
+pip install -r requirements.txt
+
+# 3. Tạo file .env và điền thông tin
+cp .env.example .env
+
+# 4. Khởi động server
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+---
+
+## Biến môi trường (.env)
+
+```env
+# Database
+DB_USER=postgres
+DB_PASS=yourpassword
+DB_NAME=docgen
+DB_HOST=localhost
+
+DATABASE_URL=postgresql+psycopg2://postgres:yourpassword@localhost:5432/docgen
+
+# JWT
+SECRET_KEY=your-secret-key-here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+# Email (để gửi OTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your@gmail.com
+SMTP_PASS=your-app-password
+
+# AI Model — Groq Cloud
+GROQ_API_KEY=your-groq-api-key
+
+# AI Model — Kaggle (nếu dùng)
+KAGGLE_API_URL=https://...
+KAGGLE_API_KEY=your-kaggle-key
+```
+
+---
+
+## API Endpoints chính
+
+| Method | Endpoint                   | Mô tả                         | Auth  |
+| ------ | -------------------------- | ----------------------------- | ----- |
+| POST   | `/api/auth/register`       | Đăng ký tài khoản             | Không |
+| POST   | `/api/auth/login`          | Đăng nhập, nhận JWT           | Không |
+| POST   | `/api/auth/verify-otp`     | Xác thực OTP email            | Không |
+| POST   | `/api/auth/reset-password` | Đặt lại mật khẩu              | Không |
+| GET    | `/api/users/me`            | Thông tin tài khoản hiện tại  | User  |
+| PUT    | `/api/users/me`            | Cập nhật tên, email           | User  |
+| POST   | `/api/users/{id}/avatar`   | Upload ảnh đại diện (max 5MB) | User  |
+| POST   | `/api/docs/generate`       | Sinh tài liệu từ mã nguồn     | User  |
+| GET    | `/api/docs/`               | Lịch sử tài liệu              | User  |
+| POST   | `/api/docs/check-syntax`   | Kiểm tra syntax code          | User  |
+| GET    | `/api/docs/{id}/export`    | Xuất tài liệu MD/PDF/DOCX     | User  |
+| GET    | `/api/public/models`       | Danh sách model AI active     | Không |
+| GET    | `/api/admin/dashboard`     | Thống kê hệ thống             | Admin |
+| GET    | `/api/admin/users`         | Quản lý người dùng            | Admin |
+| PUT    | `/api/admin/models/{id}`   | Bật/tắt model AI              | Admin |
+
+> Tài liệu Swagger đầy đủ: `http://localhost:8000/docs`
+
+---
+
+## Deploy trên AWS Ubuntu (production)
+
+```bash
+# 1. SSH vào server
+ssh ubuntu@<your-ip>
+
+# 2. Cập nhật code
+cd ~/code-docs-generator-Sever/backend
+git pull  # hoặc upload file mới qua WinSCP
+
+# 3. Restart backend
+docker compose down
+docker compose up -d --build
+
+# Kiểm tra logs
 docker compose logs -f api
 ```
 
-Nginx đã sẵn proxy `/api/` → `localhost:8000` thì không cần thay đổi gì thêm.
+### Nginx config mẫu
 
-## 🛠 Migration từ bản cũ
+```nginx
+server {
+    listen 80;
+    server_name docgenvn.id.vn;
 
-Schema cũ → mới có thêm 4 cột vào `users`, 2 bảng mới (`document_versions`,
-`ai_model_configs`, `feedbacks`), và 1 cột vào `documents` (`ai_model`).
+    location /api/ {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
 
-Có 2 cách:
+    location /data/ {
+        proxy_pass http://localhost:8000;
+    }
 
-### Cách 1: Xóa DB cũ làm lại (đơn giản, mất data)
-
-```bash
-docker compose down -v   # -v xóa volume luôn
-docker compose up -d --build
+    location / {
+        root /var/www/html;
+        try_files $uri $uri/ /index.html;
+    }
+}
 ```
 
-### Cách 2: ALTER bảng (giữ data) — chạy trong psql:
+---
 
-```sql
--- users: thêm cột
-ALTER TABLE users
-  ADD COLUMN IF NOT EXISTS otp_purpose VARCHAR(20),
-  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+## Ngôn ngữ hỗ trợ kiểm tra syntax
 
--- Set is_active = TRUE cho user cũ (vì chưa kích hoạt được hồi tố)
-UPDATE users SET is_active = TRUE WHERE is_active IS NULL OR is_active = FALSE;
+Python, JavaScript, TypeScript, Java, C++, Rust
 
--- documents: thêm cột ai_model
-ALTER TABLE documents
-  ADD COLUMN IF NOT EXISTS ai_model VARCHAR(30) DEFAULT 'GROQ_LLAMA3' NOT NULL;
+---
 
--- Bảng mới (SQLAlchemy create_all sẽ tự tạo khi khởi động lại)
--- Hoặc tạo tay:
-CREATE TABLE IF NOT EXISTS document_versions (
-  version_id     SERIAL PRIMARY KEY,
-  doc_id         INT NOT NULL REFERENCES documents(doc_id) ON DELETE CASCADE,
-  version_number INT NOT NULL,
-  content_md     TEXT NOT NULL,
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+## Lưu ý CORS
 
-CREATE TABLE IF NOT EXISTS ai_model_configs (
-  id           SERIAL PRIMARY KEY,
-  model_type   VARCHAR(30) UNIQUE NOT NULL,
-  is_active    BOOLEAN NOT NULL DEFAULT TRUE,
-  display_name VARCHAR(100),
-  description  VARCHAR(255),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+File `main.py` liệt kê rõ các origin được phép. Khi thêm domain mới hoặc port debug mới, cập nhật danh sách `allow_origins` và restart backend.
 
-CREATE TABLE IF NOT EXISTS feedbacks (
-  id         SERIAL PRIMARY KEY,
-  user_id    INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-  rating     INT NOT NULL,
-  content    TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+```python
+allow_origins=[
+    "https://docgenvn.id.vn",
+    "http://localhost:8080",   # flutter run --web-port=8080
+]
 ```
-
-## 🧪 Test nhanh sau khi deploy
-
-```bash
-# Health
-curl http://15.135.219.188:8000/health
-
-# Register
-curl -X POST http://15.135.219.188:8000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@x.com","password":"123456","full_name":"Test"}'
-
-# Lấy list model
-curl http://15.135.219.188:8000/api/public/models
-```
-
-Truy cập Swagger UI: `http://15.135.219.188:8000/docs`
-
-## 📋 Lưu ý
-
-- **SMTP chưa cấu hình**: OTP sẽ in ra console (xem `docker compose logs api`). 
-  Frontend vẫn chạy được trong chế độ dev — copy OTP từ log để test.
-- **AI Model URL/Key**: hiện chưa được sử dụng trong RAG engine của bạn. Khi Cụm 3 
-  hoàn thiện UI chọn model, sẽ wire vào `routers/documents.py::generate_document`.
-- **WeasyPrint** cần thư viện hệ thống (đã thêm vào Dockerfile). Nếu chạy ngoài Docker,
-  cài: `apt install libpango-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 fonts-dejavu`.

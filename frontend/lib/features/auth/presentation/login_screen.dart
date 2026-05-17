@@ -14,7 +14,6 @@ import '../../../core/tokens/app_typography.dart';
 import '../../../shared/widgets/dg_button.dart';
 import '../../../shared/widgets/dg_input.dart';
 import '../../../shared/widgets/dg_misc.dart';
-import '../data/auth_repository.dart';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Shared auth layout wrapper
@@ -158,15 +157,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final user = ref.read(authProvider).user;
-
-    // Xử lý kiểm tra tài khoản đã kích hoạt (Verify OTP)
-    if (user != null && !user.isActive) {
-      context.push('/verify-otp', extra: email);
-      return;
-    }
-
     // Nếu màn hình login đang ở app Admin mà tài khoản không phải admin → từ chối
+    final user = ref.read(authProvider).user;
     if (widget.requireAdmin && user != null && !user.isAdmin) {
       await ref.read(authProvider.notifier).logout();
       if (mounted) {
@@ -336,11 +328,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     DgToast.show(
       context,
-      'Đăng ký thành công! Vui lòng kiểm tra email để lấy mã OTP.',
+      'Đăng ký thành công! Vui lòng đăng nhập.',
       type: ToastType.success,
     );
-    // Chuyển sang màn xác thực OTP, truyền email theo
-    context.push('/verify-otp', extra: _emailCtrl.text.trim());
+    context.go('/login');
   }
 
   @override
@@ -422,18 +413,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 3. ForgotPasswordScreen — gọi API /forgot-password, sau đó sang reset
+// 3. ForgotPasswordScreen — chưa có endpoint backend, để placeholder
 // ════════════════════════════════════════════════════════════════════════════
-class ForgotPasswordScreen extends ConsumerStatefulWidget {
+class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  ConsumerState<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailCtrl = TextEditingController();
   bool _loading    = false;
+  bool _sent       = false;
 
   @override
   void dispose() {
@@ -442,28 +434,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   }
 
   Future<void> _send() async {
-    final email = _emailCtrl.text.trim();
-    if (email.isEmpty) {
-      DgToast.show(context, 'Vui lòng nhập email', type: ToastType.warning);
-      return;
-    }
+    if (_emailCtrl.text.isEmpty) return;
     setState(() => _loading = true);
-    try {
-      await ref.read(authRepoProvider).forgotPassword(email);
-      if (!mounted) return;
-      DgToast.show(
-        context,
-        'Mã OTP đã được gửi tới email của bạn',
-        type: ToastType.success,
-      );
-      // Chuyển sang màn đặt lại mật khẩu, truyền email theo
-      context.push('/reset-password', extra: email);
-    } catch (e) {
-      if (!mounted) return;
-      DgToast.show(context, e.toString(), type: ToastType.error);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    // Placeholder: backend chưa hỗ trợ reset password
+    await Future.delayed(const Duration(milliseconds: 1000));
+    if (!mounted) return;
+    setState(() { _loading = false; _sent = true; });
   }
 
   @override
@@ -478,33 +454,55 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           const _AuthLogo(),
           const SizedBox(height: AppSpacing.s6),
           Text(
-            'Quên mật khẩu',
+            'Khôi phục mật khẩu',
             style: Theme.of(context).textTheme.titleLarge,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppSpacing.s2),
           Text(
-            'Nhập email tài khoản để nhận mã OTP đặt lại mật khẩu',
+            'Nhập email để nhận link đặt lại mật khẩu',
             style: AppTypography.bodySmall.copyWith(color: muted),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppSpacing.s6),
 
-          DgInput(
-            label: 'Email',
-            hint: 'ban@email.com',
-            controller: _emailCtrl,
-            keyboardType: TextInputType.emailAddress,
-            prefixIcon: Icons.mail_outline,
-            textInputAction: TextInputAction.done,
-          ),
-          const SizedBox(height: AppSpacing.s5),
-          DgButton.primary(
-            label: 'Gửi mã OTP',
-            loading: _loading,
-            fullWidth: true,
-            onPressed: _loading ? null : _send,
-          ),
+          if (_sent)
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.s4),
+              decoration: BoxDecoration(
+                color: AppColors.successSoft,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, color: AppColors.success, size: 18),
+                  const SizedBox(width: AppSpacing.s2),
+                  Expanded(
+                    child: Text(
+                      'Đã gửi email khôi phục. Vui lòng kiểm tra hộp thư.',
+                      style: AppTypography.body.copyWith(color: AppColors.success),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            DgInput(
+              label: 'Email',
+              hint: 'ban@email.com',
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              prefixIcon: Icons.mail_outline,
+              textInputAction: TextInputAction.done,
+            ),
+            const SizedBox(height: AppSpacing.s5),
+            DgButton.primary(
+              label: _loading ? 'Đang gửi...' : 'Gửi link khôi phục',
+              loading: _loading,
+              fullWidth: true,
+              onPressed: _loading ? null : _send,
+            ),
+          ],
 
           const SizedBox(height: AppSpacing.s5),
           GestureDetector(

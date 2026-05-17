@@ -1,11 +1,3 @@
-// lib/core/api/api_config.dart
-//
-// baseUrl KHÔNG được kết thúc bằng `/api`. Mọi đường dẫn trong code đã có
-// tiền tố `/api/...` rồi (vd: `/api/auth/login`).
-//
-// Production: https://docgenvn.id.vn        → + /api/auth/login = https://docgenvn.id.vn/api/auth/login ✅
-// Local web:   http://localhost:8000        → + /api/auth/login = http://localhost:8000/api/auth/login   ✅
-
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 
@@ -13,34 +5,28 @@ class ApiConfig {
   ApiConfig._();
 
   static String get baseUrl {
-    // 1. PRODUCTION
+    // 1. MÔI TRƯỜNG PRODUCTION (Đã có Domain và HTTPS)
+    // Gọi thẳng vào tên miền, Nginx sẽ tự điều hướng "/api/" về Backend 8000
     if (!kDebugMode) {
-      return 'https://docgenvn.id.vn';
+      return 'https://docgenvn.id.vn/api';
     }
 
-    // 2. LOCAL DEV
+    // 2. MÔI TRƯỜNG LOCAL DEV (Khi đang code)
     if (kIsWeb) {
       return 'http://localhost:8000';
     }
 
     try {
       if (Platform.isAndroid) {
-        // Android emulator dùng 10.0.2.2 để gọi tới host machine
         return 'http://10.0.2.2:8000';
       } else if (Platform.isIOS) {
         return 'http://localhost:8000';
       }
-    } catch (_) {}
+    } catch (e) {
+      return 'http://localhost:8000';
+    }
 
     return 'http://localhost:8000';
-  }
-
-  /// Asset base — dùng cho avatar được lưu phía server (`/data/avatars/...`)
-  static String assetUrl(String path) {
-    if (path.isEmpty) return '';
-    if (path.startsWith('http')) return path;
-    final p = path.startsWith('/') ? path : '/$path';
-    return '$baseUrl$p';
   }
 
   static const Duration timeout = Duration(seconds: 60);

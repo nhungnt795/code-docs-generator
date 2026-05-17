@@ -9,7 +9,7 @@ def get_password_hash(password):
 
 def seed_admin():
     db = SessionLocal()
-    email = "admin@system.com"
+    email = "admin@docgenvn.id.vn"
     
     # Kiểm tra xem admin đã tồn tại chưa
     existing_user = db.query(User).filter(User.email == email).first()

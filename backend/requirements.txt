@@ -5,7 +5,6 @@ psycopg2-binary==2.9.10
 pydantic[email]==2.9.2
 python-dotenv==1.0.1
 python-multipart==0.0.12
-bcrypt==4.2.0
 bcrypt==3.2.2
 requests==2.32.3
 
@@ -25,7 +24,8 @@ weasyprint==62.3
 reportlab==4.2.5
 
 # AI/ML cho RAG engine
-torch==2.4.1
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.4.1+cpu
 transformers==4.45.2
 sentence-transformers==3.2.0
 numpy==1.26.4
