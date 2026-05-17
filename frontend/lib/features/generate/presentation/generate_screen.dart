@@ -11,7 +11,8 @@
 
 import 'dart:convert';
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html_lib;
+// import 'dart:html' as html_lib;
+import 'package:universal_html/html.dart' as html_lib;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

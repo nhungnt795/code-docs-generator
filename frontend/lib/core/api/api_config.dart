@@ -13,26 +13,7 @@ class ApiConfig {
   ApiConfig._();
 
   static String get baseUrl {
-    // 1. PRODUCTION
-    if (!kDebugMode) {
-      return 'https://docgenvn.id.vn';
-    }
-
-    // 2. LOCAL DEV
-    if (kIsWeb) {
-      return 'http://localhost:8000';
-    }
-
-    try {
-      if (Platform.isAndroid) {
-        // Android emulator dùng 10.0.2.2 để gọi tới host machine
-        return 'http://10.0.2.2:8000';
-      } else if (Platform.isIOS) {
-        return 'http://localhost:8000';
-      }
-    } catch (_) {}
-
-    return 'http://localhost:8000';
+    return 'https://docgenvn.id.vn';
   }
 
   /// Asset base — dùng cho avatar được lưu phía server (`/data/avatars/...`)

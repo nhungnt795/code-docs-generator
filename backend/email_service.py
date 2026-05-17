@@ -17,10 +17,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
-SMTP_EMAIL = os.getenv("SMTP_EMAIL")
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp-relay.brevo.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER")      # Sửa từ SMTP_EMAIL thành SMTP_USER
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_FROM = os.getenv("SMTP_FROM")      # Thêm mới biến này
 APP_NAME = os.getenv("APP_NAME", "DocGen VN")
 APP_URL = os.getenv("APP_URL", "https://docgenvn.id.vn")
 
@@ -72,9 +73,9 @@ def _build_html(title: str, intro: str, otp: str, note: str) -> str:
 def _send_email(receiver: str, subject: str, html: str, plain: str) -> bool:
     """
     Trả về True nếu gửi thành công, False nếu chưa cấu hình hoặc lỗi.
-    KHÔNG raise — luồng đăng ký vẫn tiếp tục được khi local chưa có SMTP.
     """
-    if not SMTP_EMAIL or not SMTP_PASSWORD:
+    # Check SMTP_USER thay vì SMTP_EMAIL
+    if not SMTP_USER or not SMTP_PASSWORD:
         print(
             f"\n{'='*60}\n"
             f"[DEV MODE] SMTP chưa cấu hình. Mã/OTP gửi tới {receiver}:\n"
@@ -84,7 +85,7 @@ def _send_email(receiver: str, subject: str, html: str, plain: str) -> bool:
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = f"{APP_NAME} <{SMTP_EMAIL}>"
+    msg["From"] = f"{APP_NAME} <{SMTP_FROM}>"  # Sửa thành SMTP_FROM ở đây
     msg["To"] = receiver
     msg.attach(MIMEText(plain, "plain", "utf-8"))
     msg.attach(MIMEText(html, "html", "utf-8"))
@@ -92,12 +93,12 @@ def _send_email(receiver: str, subject: str, html: str, plain: str) -> bool:
     try:
         if SMTP_PORT == 465:
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
-                server.login(SMTP_EMAIL, SMTP_PASSWORD)
+                server.login(SMTP_USER, SMTP_PASSWORD)  # Dùng SMTP_USER để login
                 server.send_message(msg)
         else:
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
                 server.starttls()
-                server.login(SMTP_EMAIL, SMTP_PASSWORD)
+                server.login(SMTP_USER, SMTP_PASSWORD)  # Dùng SMTP_USER để login
                 server.send_message(msg)
         print(f"✅ Đã gửi email tới {receiver}: {subject}")
         return True

@@ -127,23 +127,72 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
 
   // ── Actions ────────────────────────────────────────────────────────────────
   Future<void> _promote(UserWithDocCount user) async {
-    if (user.isAdmin) {
-      DgToast.show(context, 'Đã là Admin', type: ToastType.info);
+    // Lấy adminId từ currentUser
+    final adminId = ref.read(currentUserProvider)?.userId;
+
+    if (adminId == null) {
+      DgToast.show(
+        context,
+        'Không xác định được tài khoản admin',
+        type: ToastType.error,
+      );
       return;
     }
-    final ok = await DgConfirmDialog.show(context,
-        title: 'Nâng quyền Admin',
-        message: 'Nâng "${user.fullName ?? user.email}" thành Quản trị viên?',
-        confirmLabel: 'Xác nhận');
+
+    // Đã là admin
+    if (user.isAdmin) {
+      DgToast.show(
+        context,
+        'Người dùng đã là Admin',
+        type: ToastType.info,
+      );
+      return;
+    }
+
+    // Confirm
+    final ok = await DgConfirmDialog.show(
+      context,
+      title: 'Nâng quyền Admin',
+      message:
+      'Bạn có chắc muốn nâng "${user.fullName ?? user.email}" thành Admin?',
+      confirmLabel: 'Nâng quyền',
+    );
+
     if (!ok) return;
+
     try {
-      await ref.read(adminRepoProvider).promoteToAdmin(user.userId);
+      // Gọi API với đủ 2 tham số
+      await ref
+          .read(adminRepoProvider)
+          .promoteToAdmin(adminId, user.userId);
+
+      // Refresh data
       ref.invalidate(adminUsersProvider);
-      if (mounted)
-        DgToast.show(context, 'Đã nâng quyền ${user.email}',
-            type: ToastType.success);
+      ref.invalidate(adminStatsProvider);
+
+      if (mounted) {
+        DgToast.show(
+          context,
+          'Đã nâng quyền ${user.email}',
+          type: ToastType.success,
+        );
+      }
     } on ApiException catch (e) {
-      if (mounted) DgToast.show(context, e.message, type: ToastType.error);
+      if (mounted) {
+        DgToast.show(
+          context,
+          e.message,
+          type: ToastType.error,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        DgToast.show(
+          context,
+          'Có lỗi xảy ra khi nâng quyền',
+          type: ToastType.error,
+        );
+      }
     }
   }
 

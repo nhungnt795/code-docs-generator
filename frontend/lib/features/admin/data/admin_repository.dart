@@ -122,9 +122,10 @@ class AdminRepository {
     return res.data!;
   }
 
-  Future<User> promoteToAdmin(int userId) async {
+  Future<User> promoteToAdmin(int adminId, int userId) async {
     final res = await ApiClient.instance.post<User>(
       '/api/admin/promote/$userId',
+      query: {'admin_id': adminId},   // ← thêm dòng này
       fromData: (d) => User.fromJson(d as Map<String, dynamic>),
     );
     if (!res.success || res.data == null) throw ApiException(res.message);
