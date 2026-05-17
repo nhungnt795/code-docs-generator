@@ -26,12 +26,6 @@ dependencies:
   # HTTP client cho gọi API
   http: ^1.2.2
 
-  # Internationalization (date formatting)
-  intl: ^0.20.2
-
-  # Mở URL (trang tải xuống)
-  url_launcher: ^6.3.0
-
   # File picker (để chọn file mã nguồn)
   file_picker: ^8.1.2
 

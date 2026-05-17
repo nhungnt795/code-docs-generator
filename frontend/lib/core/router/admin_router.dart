@@ -6,19 +6,15 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/admin/presentation/dashboard_screen.dart';
 import '../../features/admin/presentation/user_management_screen.dart';
-import '../../features/admin/presentation/ai_model_screen.dart';
-import '../../features/admin/presentation/feedback_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../shared/layout/app_scaffold.dart';
 import '../auth/auth_provider.dart';
 
 class AdminRoutes {
-  static const login     = '/login';
+  static const login = '/login';
   static const dashboard = '/';
-  static const users     = '/users';
-  static const models    = '/models';
-  static const feedback  = '/feedback';
-  static const profile   = '/profile';
+  static const users = '/users';
+  static const profile = '/profile';
 }
 
 final adminRouterProvider = Provider<GoRouter>((ref) {
@@ -27,20 +23,34 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: _AuthRefreshNotifier(ref),
     redirect: (context, state) {
       final user = ref.read(authProvider).user;
-      final loc  = state.matchedLocation;
+      final loc = state.matchedLocation;
 
-      if (user == null) return loc == '/login' ? null : '/login';
+      // App Admin: BẮT BUỘC phải đăng nhập + role ADMIN
+      if (user == null) {
+        return loc == '/login' ? null : '/login';
+      }
+
+      // Đã đăng nhập nhưng không phải Admin → ép logout, đẩy về login
       if (!user.isAdmin) {
+        // Logout async, không await trong redirect
         Future.microtask(() => ref.read(authProvider.notifier).logout());
         return '/login';
       }
-      if (loc == '/login') return '/';
+
+      // Đã là admin mà còn ở /login → vào dashboard
+      if (loc == '/login') {
+        return '/';
+      }
+
       return null;
     },
     routes: [
       GoRoute(
         path: AdminRoutes.login,
-        builder: (_, __) => const LoginScreen(redirectPath: '/', requireAdmin: true),
+        builder: (_, __) => const LoginScreen(
+          redirectPath: '/',
+          requireAdmin: true,
+        ),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(
@@ -49,14 +59,20 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
           child: child,
         ),
         routes: [
-          GoRoute(path: AdminRoutes.dashboard, builder: (_, __) => const DashboardScreen()),
-          GoRoute(path: AdminRoutes.users,     builder: (_, __) => const UserManagementScreen()),
-          GoRoute(path: AdminRoutes.models,    builder: (_, __) => const AIModelScreen()),
-          GoRoute(path: AdminRoutes.feedback,  builder: (_, __) => const FeedbackScreen()),
+          GoRoute(
+            path: AdminRoutes.dashboard,
+            builder: (_, __) => const DashboardScreen(),
+          ),
+          GoRoute(
+            path: AdminRoutes.users,
+            builder: (_, __) => const UserManagementScreen(),
+          ),
           GoRoute(
             path: AdminRoutes.profile,
             builder: (_, __) => const ProfileScreen(
-                showUsageStats: false, title: 'Cài đặt hệ thống'),
+              showUsageStats: false,
+              title: 'Cài đặt hệ thống',
+            ),
           ),
         ],
       ),

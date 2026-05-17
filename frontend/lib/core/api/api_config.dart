@@ -4,24 +4,35 @@
 // tiền tố `/api/...` rồi (vd: `/api/auth/login`).
 //
 // Production: https://docgenvn.id.vn        → + /api/auth/login = https://docgenvn.id.vn/api/auth/login ✅
+// Local web:   http://localhost:8000        → + /api/auth/login = http://localhost:8000/api/auth/login   ✅
 
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 
 class ApiConfig {
   ApiConfig._();
 
   static String get baseUrl {
-    // Luôn trỏ về server AWS — cả debug lẫn production
-    // Nếu muốn dev local, đổi thành 'http://localhost:8000' tạm thời
-    return 'https://docgenvn.id.vn';
-  }
+    // 1. PRODUCTION
+    if (!kDebugMode) {
+      return 'https://docgenvn.id.vn';
+    }
 
-  /// Asset base — dùng cho avatar được lưu phía server (`/data/avatars/...`)
-  static String assetUrl(String path) {
-    if (path.isEmpty) return '';
-    if (path.startsWith('http')) return path;
-    final p = path.startsWith('/') ? path : '/$path';
-    return '$baseUrl$p';
+    // 2. LOCAL DEV
+    if (kIsWeb) {
+      return 'http://localhost:8000';
+    }
+
+    try {
+      if (Platform.isAndroid) {
+        // Android emulator dùng 10.0.2.2 để gọi tới host machine
+        return 'http://10.0.2.2:8000';
+      } else if (Platform.isIOS) {
+        return 'http://localhost:8000';
+      }
+    } catch (_) {}
+
+    return 'http://localhost:8000';
   }
 
   static const Duration timeout = Duration(seconds: 60);

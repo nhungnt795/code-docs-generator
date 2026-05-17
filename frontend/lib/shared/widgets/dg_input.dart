@@ -9,20 +9,16 @@ import '../../core/tokens/app_typography.dart';
 class DgInput extends StatefulWidget {
   final String? label;
   final String? hint;
-  final String? hintText; // alias for hint
   final String? errorText;
   final String? helperText;
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final TextInputType keyboardType;
   final bool obscureText;
-  final bool isPassword; // alias for obscureText
   final bool readOnly;
-  final bool enabled;
   final bool autofocus;
   final int? maxLines;
   final int? minLines;
-  final int? maxLength;
   final IconData? prefixIcon;
   final Widget? suffix;
   final ValueChanged<String>? onChanged;
@@ -35,20 +31,16 @@ class DgInput extends StatefulWidget {
     super.key,
     this.label,
     this.hint,
-    this.hintText,
     this.errorText,
     this.helperText,
     this.controller,
     this.focusNode,
     this.keyboardType = TextInputType.text,
     this.obscureText = false,
-    this.isPassword = false,
     this.readOnly = false,
-    this.enabled = true,
     this.autofocus = false,
     this.maxLines = 1,
     this.minLines,
-    this.maxLength,
     this.prefixIcon,
     this.suffix,
     this.onChanged,
@@ -133,13 +125,11 @@ class _DgInputState extends State<DgInput> {
           controller: widget.controller,
           focusNode: widget.focusNode,
           keyboardType: widget.keyboardType,
-          obscureText: (widget.obscureText || widget.isPassword) && _obscure,
+          obscureText: widget.obscureText && _obscure,
           readOnly: widget.readOnly,
-          enabled: widget.enabled,
           autofocus: widget.autofocus,
-          maxLines: (widget.obscureText || widget.isPassword) ? 1 : widget.maxLines,
+          maxLines: widget.obscureText ? 1 : widget.maxLines,
           minLines: widget.minLines,
-          maxLength: widget.maxLength,
           onChanged: widget.onChanged,
           onTap: widget.onTap,
           validator: widget.validator,
@@ -147,7 +137,7 @@ class _DgInputState extends State<DgInput> {
           onEditingComplete: widget.onEditingComplete,
           style: AppTypography.body.copyWith(color: fg),
           decoration: InputDecoration(
-            hintText: widget.hintText ?? widget.hint,
+            hintText: widget.hint,
             hintStyle: AppTypography.body.copyWith(color: muted),
             filled: true,
             fillColor: Colors.transparent,
@@ -157,7 +147,7 @@ class _DgInputState extends State<DgInput> {
                 ? Icon(widget.prefixIcon, size: 16, color: muted)
                 : null,
             prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            suffixIcon: (widget.obscureText || widget.isPassword)
+            suffixIcon: widget.obscureText
                 ? GestureDetector(
                     onTap: () => setState(() => _obscure = !_obscure),
                     child: Icon(
