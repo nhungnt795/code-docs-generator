@@ -73,6 +73,8 @@ cd qa_ba
 | **Integration Test** | `pytest tests/integration/ -v` | Kiểm tra luồng dữ liệu liên thông giữa API Endpoints, Auth, Admin và AI Module |
 | **Data & DB Quality** | `pytest tests/data_and_db/ -v` | Kiểm tra độ chính xác của cơ sở dữ liệu và hiệu năng truy vấn Vector Search |
 | **Manual Test Cases** | [Đường dẫn tới Google Sheet](https://docs.google.com/spreadsheets/d/1yESikANsEdMLIGsqlwa7m6J5wx5rdYJv/edit?usp=sharing&ouid=115446633535621374148&rtpof=true&sd=true) | Tập hợp các kịch bản kiểm thử thủ công, ma trận phủ kiểm thử (Traceability Matrix) và kết quả chạy thử nghiệm |
+
+> ⚠️ **LƯU Ý QUAN TRỌNG (RATE LIMIT):** Khuyến khích kiểm thử khoanh vùng theo từng phân khu (`unit`, `integration`, `data_and_db`) thay vì lạm dụng lệnh chạy toàn bộ hệ thống `pytest -v`. Việc gọi liên tục các API tích hợp của mô hình AI (như Groq Cloud API) trong bộ test tích hợp với tần suất cao rất dễ kích hoạt cơ chế giới hạn lượt gọi (**Rate Limit**), gây gián đoạn phản hồi hoặc block kết nối của hệ thống.
 ---
 
 ## 📈 Hệ thống Giám sát Mô hình AI (AI Monitoring)
